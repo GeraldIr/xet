@@ -23,10 +23,10 @@ Make sure the file ends with a new-line.
 
 example:
 
-pyproject.toml@version =
-bindings/python/pyproject.toml@version =@bindings
-deploy/values_development.yaml@appImageTag:
-deploy/values_production.yaml@appImageTag:@prod
+pyproject.toml@version = 
+bindings/python/pyproject.toml@version =@bindings 
+deploy/values_development.yaml@appImageTag: 
+deploy/values_production.yaml@appImageTag:@prod 
 
 
 ### calling bump
