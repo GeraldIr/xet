@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "bump"
+version = "0.1.0"
+description = "CLI Tool for quickly updating (bumping) values across your project."
+authors = ["Gerald Walter Irsiegler"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+argparse = "^1.4.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
