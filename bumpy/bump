@@ -1,0 +1,211 @@
+#!/usr/bin/python3
+
+import argparse
+import json
+import os
+import re
+
+
+CONFIG_FILE = "bump.cfg"
+
+
+def init_config(args):
+    """Initialize a bump.cfg file."""
+    if os.path.exists(CONFIG_FILE):
+        print("Configuration already exists.")
+        return
+    with open(CONFIG_FILE, "w") as f:
+        json.dump({}, f)
+
+
+def parse_config(except_flags=None, only_flags=None):
+    """Parse bump.cfg, handling [entry] sections and applying -e/-o filters."""
+
+    except_flags = set(except_flags) if except_flags else set()
+    only_flags = set(only_flags) if only_flags else set()
+
+    with open(CONFIG_FILE, mode="r") as f:
+        config: dict = json.load(f)
+
+    # Apply filters
+    filtered_config = {}
+    for key, entry in config.items():
+        flags = entry["flags"] if (entry and "flags" in entry) else None
+        if flags:
+            if except_flags and any([flag in except_flags for flag in flags]):
+                continue
+            if only_flags and not any([flag in only_flags for flag in flags]):
+                continue
+        elif only_flags:
+            continue  # Skip if only_flags specified but no flag on this entry
+        filtered_config[key] = entry
+
+    return filtered_config
+
+
+def get_value(args):
+    """Get the value associated with a tag in files listed in bump.cfg."""
+    config = parse_config(args.e, args.o)
+    for entry in config.values():
+        filepath, tag, wrapper = entry["filepath"], entry["tag"], entry["wrapper"]
+        if not os.path.exists(filepath):
+            print(f"File not found: {filepath}")
+            continue
+        with open(filepath, "r") as f:
+            for line in f:
+                if line.startswith(tag):
+                    print(
+                        f"{filepath}: {line.lstrip(tag).lstrip(wrapper).rstrip(wrapper)}"
+                    )
+                    break
+
+
+def set_value(args):
+    """Set the value associated with a tag in files listed in bump.cfg."""
+    config = parse_config(args.e, args.o)
+    for entry in config.values():
+        filepath, tag, wrapper, regex, occurence, group = (
+            entry["filepath"],
+            entry["tag"],
+            entry["wrapper"],
+            entry["match"],
+            entry["occurence"],
+            entry["group"],
+        )
+        print(wrapper)
+        if not os.path.exists(filepath):
+            print(f"File not found: {filepath}")
+            continue
+        updated = False
+        with open(filepath, "r") as f:
+            lines = f.readlines()
+        with open(filepath, "w") as f:
+            for line in lines:
+                if regex:
+                    continue
+                else:
+                    if line.startswith(tag):
+                        f.write(
+                            f"{tag}{wrapper if wrapper is not None else ''}{args.value}{wrapper if wrapper is not None else ''}\n"
+                        )
+                        updated = True
+                    else:
+                        f.write(line)
+            if not updated:
+                f.write(
+                    f"{tag}{wrapper if wrapper is not None else ''}{args.value}{wrapper if wrapper is not None else ''}\n"
+                )
+        print(f"Updated {tag} in {filepath}")
+
+
+def add_entry(args):
+    """Add a new entry to bump.cfg."""
+
+    config = parse_config()
+
+    config[args.name] = {
+        "filepath": args.filepath,
+        "tag": args.tag,
+        "flags": args.flags,
+        "wrapper": args.wrapper,
+        "match": args.regex,
+        "group": args.group,
+    }
+
+    with open(CONFIG_FILE, mode="w") as f:
+        json.dump(config, f, indent=4)
+
+
+def remove_entry(args):
+    """Remove an entry from bump.cfg based on the tag."""
+    config = parse_config()
+
+    config.pop(args.name)
+
+    with open(CONFIG_FILE, mode="w") as f:
+        json.dump(config, f, indent=4)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="bump", description="A CLI tool to manage values in multiple files."
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    subparsers.add_parser("init", help="Initialize bump.cfg").set_defaults(
+        func=init_config
+    )
+
+    get_parser = subparsers.add_parser(
+        "get", help="Get a value from files listed in bump.cfg"
+    )
+    get_parser.set_defaults(func=get_value)
+    get_parser.add_argument(
+        "--except", "-e", dest="e", nargs="+", help="Exclude entries with these flags"
+    )
+    get_parser.add_argument(
+        "--only",
+        "-o",
+        dest="o",
+        nargs="+",
+        help="Include only entries with these flags",
+    )
+
+    set_parser = subparsers.add_parser(
+        "set", help="Set a value in files listed in bump.cfg"
+    )
+    set_parser.set_defaults(func=set_value)
+    set_parser.add_argument("value", help="Value to set")
+    set_parser.add_argument(
+        "--except", "-e", dest="e", nargs="*", help="Exclude entries with these flags"
+    )
+    set_parser.add_argument(
+        "--only",
+        "-o",
+        dest="o",
+        nargs="*",
+        help="Include only entries with these flags",
+    )
+
+    add_parser = subparsers.add_parser("add", help="Add a new entry to bump.cfg")
+    add_parser.set_defaults(func=add_entry)
+    add_parser.add_argument("name", help="The name of the entry in the config.")
+    add_parser.add_argument("filepath", help="Path to the file")
+    add_parser.add_argument(
+        "tag", help="Tag identifying the line in the file or regex if -r is set."
+    )
+    add_parser.add_argument("flags", nargs="*", help="Optional flags for filtering")
+    add_parser.add_argument(
+        "--wrapper",
+        "-w",
+        dest="wrapper",
+        help="Value will be wrapped in this character (useful for updating values in brackets or commas).",
+    )
+    add_parser.add_argument(
+        "--match",
+        "-m",
+        nargs=0,
+        dest="regex",
+        help="Tag will be interpreted as regex.",
+        action="store_true",
+    )
+    add_parser.add_argument(
+        "--group",
+        "-g",
+        nargs=1,
+        dest="group",
+        help="If regex is set to true and group is set to an integer, the nth group of matched with the regex will be interpreted as the value.",
+    )
+
+    remove_parser = subparsers.add_parser(
+        "remove", help="Remove an entry from bump.cfg"
+    )
+    remove_parser.set_defaults(func=remove_entry)
+    remove_parser.add_argument("name", help="Name of the entry to remove")
+
+    args = parser.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
