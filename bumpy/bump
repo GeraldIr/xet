@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+from typing import Union
 
 
 CONFIG_FILE = "bump.cfg"
@@ -60,44 +61,152 @@ def get_value(args):
                     break
 
 
+def _parse_index_or_slice(s):
+    if ":" in s:  # It's a slice
+        parts = s.split(":")
+        parts = [int(p) if p else None for p in parts]  # Convert to int or None
+        return slice(*parts)
+    else:  # It's a single index
+        return int(s)
+
+
+def _set_tag_value(
+    filepath: str = "",
+    tag: str = "",
+    occurences: Union[str, list[int]] = ":",
+    wrapper: str = None,
+    value: str = "",
+):
+    found_occurences = []
+    with open(filepath, "r") as f:
+        lines = f.read().splitlines()
+
+    for i, line in enumerate(lines):
+        if line.startswith(tag):
+            found_occurences.append(i)
+
+    occurences = occurences if occurences else ":"
+    if isinstance(occurences, str):
+        filtered_occurences = found_occurences[_parse_index_or_slice(occurences)]
+    elif isinstance(occurences, list):
+        filtered_occurences = [
+            o for i, o in enumerate(found_occurences) if i in occurences
+        ]
+    for occurence_index in filtered_occurences:
+        lines[occurence_index] = (
+            f"{tag}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}"
+        )
+
+    with open(filepath, "w") as f:
+        lines = [line + "\n" for line in lines]
+        f.writelines(lines)
+
+
+def _set_lc_value(
+    filepath: str = "",
+    line: str = "",
+    column: int = 0,
+    wrapper: str = "",
+    value: str = "",
+):
+    with open(filepath, "r") as f:
+        lines = f.read().splitlines()
+
+    lines[line] = (
+        f"{lines[line][:column]}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}"
+    )
+
+    with open(filepath, "w") as f:
+        lines = [line + "\n" for line in lines]
+        f.writelines(lines)
+
+
+def _set_regex_value(
+    filepath: str = "",
+    regex: str = "",
+    group: int = 0,
+    occurences: Union[str, list[int]] = ":",
+    wrapper: str = "",
+    value: str = "",
+):
+    with open(filepath, "r") as f:
+        lines = f.read().splitlines()
+
+    found_occurences = []
+    for i, line in enumerate(lines):
+        m = re.search(regex, line)
+        if m:
+            found_occurences.append((i, m))
+
+    occurences = occurences if occurences else ":"
+    if isinstance(occurences, str):
+        filtered_occurences = found_occurences[_parse_index_or_slice(occurences)]
+    elif isinstance(occurences, list):
+        filtered_occurences = [
+            o for i, o in enumerate(found_occurences) if i in occurences
+        ]
+    for occurence_index, occurence_match in filtered_occurences:
+        if not group:
+            lines[occurence_index] = (
+                f"{occurence_match.string}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}"
+            )
+        else:
+            start = lines[occurence_index][0 : occurence_match.start(group)]
+            end = lines[occurence_index][occurence_match.end(group) :]
+            lines[occurence_index] = (
+                f"{start}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{end}"
+            )
+    with open(filepath, "w") as f:
+        lines = [line + "\n" for line in lines]
+        f.writelines(lines)
+
+
 def set_value(args):
     """Set the value associated with a tag in files listed in bump.cfg."""
     config = parse_config(args.e, args.o)
     for entry in config.values():
-        filepath, tag, occurence, line, column, wrapper, regex, group = (
+        type, filepath, wrapper = (
+            entry["type"],
             entry["filepath"],
-            entry["tag"],
-            entry["occurence"],
-            entry["line"],
-            entry["column"],
             entry["wrapper"],
-            entry["match"],
-            entry["group"],
         )
-        print(wrapper)
+
         if not os.path.exists(filepath):
             print(f"File not found: {filepath}")
             continue
-        updated = False
-        with open(filepath, "r") as f:
-            lines = f.readlines()
-        with open(filepath, "w") as f:
-            for line in lines:
-                if regex:
-                    continue
-                else:
-                    if line.startswith(tag):
-                        f.write(
-                            f"{tag}{wrapper if wrapper is not None else ''}{args.value}{wrapper if wrapper is not None else ''}\n"
-                        )
-                        updated = True
-                    else:
-                        f.write(line)
-            if not updated:
-                f.write(
-                    f"{tag}{wrapper if wrapper is not None else ''}{args.value}{wrapper if wrapper is not None else ''}\n"
-                )
-        print(f"Updated {tag} in {filepath}")
+
+        if type == "tag":
+            tag = entry["tag"]
+            occurences = entry["occurences"]
+            _set_tag_value(
+                filepath=filepath,
+                tag=tag,
+                occurences=occurences,
+                wrapper=wrapper,
+                value=args.value,
+            )
+        elif type == "tag":
+            line = entry["line"]
+            column = entry["column"]
+            _set_lc_value(
+                filepath=filepath,
+                line=line,
+                column=column,
+                wrapper=wrapper,
+                value=args.value,
+            )
+        elif type == "regex":
+            regex = entry["regex"]
+            group = entry["group"]
+            occurences = entry["occurences"]
+            _set_regex_value(
+                filepath=filepath,
+                regex=regex,
+                group=group,
+                occurences=occurences,
+                wrapper=wrapper,
+                value=args.value,
+            )
 
 
 def add_entry(args):
@@ -119,13 +228,14 @@ def add_entry(args):
         }
     elif args.subcommand == "lc":
         config[args.name] |= {
-            "line": args.line,
-            "column": args.column,
+            "line": int(args.line),
+            "column": int(args.column),
         }
     elif args.subcommand == "regex":
         config[args.name] |= {
-            "match": args.match,
-            "group": args.group,
+            "regex": args.regex,
+            "group": int(args.group[0]) if args.group else None,
+            "occurences": args.occurences,
         }
 
     with open(CONFIG_FILE, mode="w") as f:
@@ -237,14 +347,14 @@ def main():
     add_regex_parser.add_argument("name", help="The name of the entry in the config.")
     add_regex_parser.add_argument("filepath", help="Path to the file")
     add_regex_parser.add_argument(
-        "match",
-        help="The regex. If no group is specified values are updated after any given match.",
+        "regex",
+        help="The regular expression, if no group is specified values are updated after any given match (like tags).",
     )
     add_regex_parser.add_argument(
         "--group",
         "-g",
         nargs=1,
-        help="The group number which should be interpreted as the value.",
+        help="The group number which should be interpreted as the value. 0 means the entire match is interpreted as the value. Everything but the value itself is preserved, useful when values aren't at the end of a line",
     )
     add_regex_parser.add_argument(
         "--occurences",
