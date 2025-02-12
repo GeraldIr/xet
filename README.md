@@ -9,10 +9,10 @@ Bump is a command-line tool for managing and modifying values in multiple files 
 Ensure you have Python 3 installed. Place the script in a directory included in your system's `PATH` and make it executable:
 
 ```sh
-chmod +x bumpy/bump
-mv bumpy/bump /usr/local/bin/bump
+chmod +x bumpy/bump 
+cp bumpy/bump /usr/local/bin/bump
 ```
-
+You can also just run the ```install.sh``` script which should do the same in most cases.
 
 
 ## Commands
