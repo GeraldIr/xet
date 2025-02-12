@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+from typing import Union
 
 
 CONFIG_FILE = "bump.cfg"
@@ -60,42 +61,152 @@ def get_value(args):
                     break
 
 
+def _parse_index_or_slice(s):
+    if ":" in s:  # It's a slice
+        parts = s.split(":")
+        parts = [int(p) if p else None for p in parts]  # Convert to int or None
+        return slice(*parts)
+    else:  # It's a single index
+        return int(s)
+
+
+def _set_tag_value(
+    filepath: str = "",
+    tag: str = "",
+    occurences: Union[str, list[int]] = ":",
+    wrapper: str = None,
+    value: str = "",
+):
+    found_occurences = []
+    with open(filepath, "r") as f:
+        lines = f.read().splitlines()
+
+    for i, line in enumerate(lines):
+        if line.startswith(tag):
+            found_occurences.append(i)
+
+    occurences = occurences if occurences else ":"
+    if isinstance(occurences, str):
+        filtered_occurences = found_occurences[_parse_index_or_slice(occurences)]
+    elif isinstance(occurences, list):
+        filtered_occurences = [
+            o for i, o in enumerate(found_occurences) if i in occurences
+        ]
+    for occurence_index in filtered_occurences:
+        lines[occurence_index] = (
+            f"{tag}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}"
+        )
+
+    with open(filepath, "w") as f:
+        lines = [line + "\n" for line in lines]
+        f.writelines(lines)
+
+
+def _set_lc_value(
+    filepath: str = "",
+    line: str = "",
+    column: int = 0,
+    wrapper: str = "",
+    value: str = "",
+):
+    with open(filepath, "r") as f:
+        lines = f.read().splitlines()
+
+    lines[line] = (
+        f"{lines[line][:column]}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}"
+    )
+
+    with open(filepath, "w") as f:
+        lines = [line + "\n" for line in lines]
+        f.writelines(lines)
+
+
+def _set_regex_value(
+    filepath: str = "",
+    regex: str = "",
+    group: int = 0,
+    occurences: Union[str, list[int]] = ":",
+    wrapper: str = "",
+    value: str = "",
+):
+    with open(filepath, "r") as f:
+        lines = f.read().splitlines()
+
+    found_occurences = []
+    for i, line in enumerate(lines):
+        m = re.search(regex, line)
+        if m:
+            found_occurences.append((i, m))
+
+    occurences = occurences if occurences else ":"
+    if isinstance(occurences, str):
+        filtered_occurences = found_occurences[_parse_index_or_slice(occurences)]
+    elif isinstance(occurences, list):
+        filtered_occurences = [
+            o for i, o in enumerate(found_occurences) if i in occurences
+        ]
+    for occurence_index, occurence_match in filtered_occurences:
+        if not group:
+            lines[occurence_index] = (
+                f"{occurence_match.string}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}"
+            )
+        else:
+            start = lines[occurence_index][0 : occurence_match.start(group)]
+            end = lines[occurence_index][occurence_match.end(group) :]
+            lines[occurence_index] = (
+                f"{start}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{end}"
+            )
+    with open(filepath, "w") as f:
+        lines = [line + "\n" for line in lines]
+        f.writelines(lines)
+
+
 def set_value(args):
     """Set the value associated with a tag in files listed in bump.cfg."""
     config = parse_config(args.e, args.o)
     for entry in config.values():
-        filepath, tag, wrapper, regex, occurence, group = (
+        type, filepath, wrapper = (
+            entry["type"],
             entry["filepath"],
-            entry["tag"],
             entry["wrapper"],
-            entry["match"],
-            entry["occurence"],
-            entry["group"],
         )
-        print(wrapper)
+
         if not os.path.exists(filepath):
             print(f"File not found: {filepath}")
             continue
-        updated = False
-        with open(filepath, "r") as f:
-            lines = f.readlines()
-        with open(filepath, "w") as f:
-            for line in lines:
-                if regex:
-                    continue
-                else:
-                    if line.startswith(tag):
-                        f.write(
-                            f"{tag}{wrapper if wrapper is not None else ''}{args.value}{wrapper if wrapper is not None else ''}\n"
-                        )
-                        updated = True
-                    else:
-                        f.write(line)
-            if not updated:
-                f.write(
-                    f"{tag}{wrapper if wrapper is not None else ''}{args.value}{wrapper if wrapper is not None else ''}\n"
-                )
-        print(f"Updated {tag} in {filepath}")
+
+        if type == "tag":
+            tag = entry["tag"]
+            occurences = entry["occurences"]
+            _set_tag_value(
+                filepath=filepath,
+                tag=tag,
+                occurences=occurences,
+                wrapper=wrapper,
+                value=args.value,
+            )
+        elif type == "tag":
+            line = entry["line"]
+            column = entry["column"]
+            _set_lc_value(
+                filepath=filepath,
+                line=line,
+                column=column,
+                wrapper=wrapper,
+                value=args.value,
+            )
+        elif type == "regex":
+            regex = entry["regex"]
+            group = entry["group"]
+            occurences = entry["occurences"]
+            _set_regex_value(
+                filepath=filepath,
+                regex=regex,
+                group=group,
+                occurences=occurences,
+                wrapper=wrapper,
+                value=args.value,
+            )
 
 
 def add_entry(args):
@@ -104,13 +215,28 @@ def add_entry(args):
     config = parse_config()
 
     config[args.name] = {
+        "type": args.subcommand,
         "filepath": args.filepath,
-        "tag": args.tag,
         "flags": args.flags,
         "wrapper": args.wrapper,
-        "match": args.regex,
-        "group": args.group,
     }
+
+    if args.subcommand == "tag":
+        config[args.name] |= {
+            "tag": args.tag,
+            "occurences": args.occurences,
+        }
+    elif args.subcommand == "lc":
+        config[args.name] |= {
+            "line": int(args.line),
+            "column": int(args.column),
+        }
+    elif args.subcommand == "regex":
+        config[args.name] |= {
+            "regex": args.regex,
+            "group": int(args.group[0]) if args.group else None,
+            "occurences": args.occurences,
+        }
 
     with open(CONFIG_FILE, mode="w") as f:
         json.dump(config, f, indent=4)
@@ -152,7 +278,7 @@ def main():
     )
 
     set_parser = subparsers.add_parser(
-        "set", help="Set a value in files listed in bump.cfg"
+        "set", help="Set a value in files listed in the bump config."
     )
     set_parser.set_defaults(func=set_value)
     set_parser.add_argument("value", help="Value to set")
@@ -167,34 +293,84 @@ def main():
         help="Include only entries with these flags",
     )
 
-    add_parser = subparsers.add_parser("add", help="Add a new entry to bump.cfg")
-    add_parser.set_defaults(func=add_entry)
-    add_parser.add_argument("name", help="The name of the entry in the config.")
-    add_parser.add_argument("filepath", help="Path to the file")
-    add_parser.add_argument(
-        "tag", help="Tag identifying the line in the file or regex if -r is set."
+    add_parser = subparsers.add_parser("add", help="Add a new entry to bump config")
+    add_sub_parser = add_parser.add_subparsers(dest="subcommand")
+    add_tag_parser = add_sub_parser.add_parser(
+        "tag", help="Add a tag-type entry to the bump config."
     )
-    add_parser.add_argument("flags", nargs="*", help="Optional flags for filtering")
-    add_parser.add_argument(
+    add_tag_parser.set_defaults(func=add_entry)
+    add_tag_parser.add_argument("name", help="The name of the entry in the config.")
+    add_tag_parser.add_argument("filepath", help="Path to the file")
+    add_tag_parser.add_argument("tag", help="Tag identifying the line in the file.")
+    add_tag_parser.add_argument(
+        "--flags", "-f", nargs="*", help="Optional flags for filtering"
+    )
+    add_tag_parser.add_argument(
         "--wrapper",
         "-w",
         dest="wrapper",
         help="Value will be wrapped in this character (useful for updating values in brackets or commas).",
     )
-    add_parser.add_argument(
-        "--match",
-        "-m",
-        nargs=0,
-        dest="regex",
-        help="Tag will be interpreted as regex.",
-        action="store_true",
+    add_tag_parser.add_argument(
+        "--occurences",
+        "-o",
+        nargs="*",
+        dest="occurences",
+        help="Which occurence of the tag should be included, can be an integer, list of integers or the string 'all'",
     )
-    add_parser.add_argument(
+
+    add_lc_parser = add_sub_parser.add_parser(
+        "lc", help="Add a line/column-type entry to the bump config."
+    )
+    add_lc_parser.set_defaults(func=add_entry)
+    add_lc_parser.add_argument("name", help="The name of the entry in the config.")
+    add_lc_parser.add_argument("filepath", help="Path to the file")
+    add_lc_parser.add_argument("line", help="The line at which the value is located")
+    add_lc_parser.add_argument(
+        "column", help="The column after which the value is located"
+    )
+    add_lc_parser.add_argument(
+        "--flags", "-f", nargs="*", help="Optional flags for filtering"
+    )
+    add_lc_parser.add_argument(
+        "--wrapper",
+        "-w",
+        dest="wrapper",
+        help="Value will be wrapped in this character (useful for updating values in brackets or commas).",
+    )
+
+    add_regex_parser = add_sub_parser.add_parser(
+        "regex",
+        help="Match tags with regex instead of plaintext, also supports group matching the values place.",
+    )
+    add_regex_parser.set_defaults(func=add_entry)
+    add_regex_parser.add_argument("name", help="The name of the entry in the config.")
+    add_regex_parser.add_argument("filepath", help="Path to the file")
+    add_regex_parser.add_argument(
+        "regex",
+        help="The regular expression, if no group is specified values are updated after any given match (like tags).",
+    )
+    add_regex_parser.add_argument(
         "--group",
         "-g",
         nargs=1,
-        dest="group",
-        help="If regex is set to true and group is set to an integer, the nth group of matched with the regex will be interpreted as the value.",
+        help="The group number which should be interpreted as the value. 0 means the entire match is interpreted as the value. Everything but the value itself is preserved, useful when values aren't at the end of a line",
+    )
+    add_regex_parser.add_argument(
+        "--occurences",
+        "-o",
+        nargs="*",
+        dest="occurences",
+        help="Which occurence of any matches should be included, can be an integer or list of integers, by default all occurences are updated.",
+    )
+    add_regex_parser.add_argument(
+        "--flags", "-f", nargs="*", help="Optional flags for filtering"
+    )
+    add_regex_parser.add_argument(
+        "--wrapper",
+        "-w",
+        dest="wrapper",
+        help="Value will be wrapped in this character (useful for updating values in brackets or commas).",
     )
 
     remove_parser = subparsers.add_parser(
