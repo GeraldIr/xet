@@ -1,43 +1,124 @@
-# bump
-bump is a bash-script / CLI tool allowing you to bump multiple version numbers across your projects with a single command.
+# Bump CLI Usage Guide
 
-## Installation 
+## Overview
 
-the bump file is a bash script, so:
-- move it to your /usr/local/bin folder 
-- run chmod +x /usr/local/bin/bump
+Bump is a command-line tool for managing and modifying values in multiple files using a configuration file (`bump.cfg`). It supports various methods of identifying and modifying values, including tags, line/column positions, and regular expressions.
 
-now you should be able to call it from anywhere
+## Installation
 
-## Usage
+Ensure you have Python 3 installed. Place the script in a directory included in your system's `PATH` and make it executable:
 
-### bump.cfg
-
-The bump.cfg file should be at the top-level of your project (where your .gitignore resides for instance) and each line should be formatted as such:
-
-filepath@tag@flag
-
-whereas the last @flag is optional.
-
-Make sure the file ends with a new-line.
-
-example:
-
-pyproject.toml@version = 
-bindings/python/pyproject.toml@version =@bindings 
-deploy/values_development.yaml@appImageTag: 
-deploy/values_production.yaml@appImageTag:@prod 
+```sh
+chmod +x bumpy/bump
+mv bumpy/bump /usr/local/bin/bump
+```
 
 
-### calling bump
 
-bump [-e flags (delimited by ,)] NEWVERSION
+## Commands
 
-any file/tag combinations with a flag included in the -e option are skipped.
+### Initialize Configuration
 
-bump then iterates all the entries in the bump.cfg and replaces the version after the given tag with the new version (NEWVERSION).
+```sh
+bump init
+```
 
-examples:
+Creates an empty `bump.cfg` if it does not already exist.
 
-bump 1.0.1
-bump -e prod 1.0.1
+Any bump command will use the bump.cfg file in the immediate directory, the future promises much more.
+
+### Add Entries to Configuration
+
+#### Add a Tag-Based Entry
+
+```sh
+bump add tag <name> <filepath> <tag> [options]
+```
+
+- `<name>`: Identifier for the entry in `bump.cfg`.
+- `<filepath>`: Path to the target file.
+- `<tag>`: The string identifying the line to modify.
+- Options:
+  - `-f, --flags <flags>`: Optional flags for filtering.
+  - `-w, --wrapper <char>`: Wrap the value with a character (e.g., quotes).
+  - `-o, --occurences <indices>`: Specify which occurrences to modify (integer, list, or `all`).
+
+#### Add a Line/Column-Based Entry
+
+```sh
+bump add lc <name> <filepath> <line> <column> [options]
+```
+
+- `<line>`: Line number (zero-based index).
+- `<column>`: Column position after which the value is placed.
+- Options: Same as tag-based entry.
+
+#### Add a Regex-Based Entry
+
+```sh
+bump add regex <name> <filepath> <regex> [options]
+```
+
+- `<regex>`: Regular expression to match values.
+- Options:
+  - `-g, --group <int>`: Capture group number to update.
+  - `-o, --occurences <indices>`: Specify which matches to modify.
+
+### Get Values from Configured Files
+
+```sh
+bump get [-e <flags>] [-o <flags>]
+```
+
+- `-e, --except <flags>`: Exclude entries with specified flags.
+- `-o, --only <flags>`: Include only entries with specified flags.
+
+### Set Values in Configured Files
+
+```sh
+bump set <value> [-e <flags>] [-o <flags>]
+```
+
+- `<value>`: The new value to be set.
+- Filtering options are the same as for `bump get`.
+
+### Remove an Entry
+
+```sh
+bump remove <name>
+```
+
+Removes the specified entry from `bump.cfg`.
+
+## Example Usage
+
+1. **Initialize Configuration:**
+
+   ```sh
+   bump init
+   ```
+
+2. **Add a Tag-Based Entry:**
+
+   ```sh
+   bump add tag version ./config.txt VERSION= -w '"'
+   ```
+
+3. **Get Values:**
+
+   ```sh
+   bump get
+   ```
+
+4. **Set a New Value:**
+
+   ```sh
+   bump set "2.0.1"
+   ```
+
+5. **Remove an Entry:**
+
+   ```sh
+   bump remove version
+   ```
+
