@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 from typing import Union
 
 
@@ -17,10 +18,12 @@ def init_config(args):
         return
     with open(CONFIG_FILE, "w") as f:
         json.dump({}, f)
+    if args.v:
+        ...
 
 
 def parse_config(except_flags=None, only_flags=None):
-    """Parse bump.cfg, handling [entry] sections and applying -e/-o filters."""
+    """Parse bump.cfg, handling entries and applying -e/-o filters."""
 
     except_flags = set(except_flags) if except_flags else set()
     only_flags = set(only_flags) if only_flags else set()
@@ -39,26 +42,13 @@ def parse_config(except_flags=None, only_flags=None):
                 continue
         elif only_flags:
             continue  # Skip if only_flags specified but no flag on this entry
+        # Decrement line and column entries here, so they don't have to be adjusted when working with indices.
+        if entry["type"] == "lc":
+            entry["column"] = entry["column"] - 1
+            entry["line"] = entry["line"] - 1
         filtered_config[key] = entry
 
     return filtered_config
-
-
-def get_value(args):
-    """Get the value associated with a tag in files listed in bump.cfg."""
-    config = parse_config(args.e, args.o)
-    for entry in config.values():
-        filepath, tag, wrapper = entry["filepath"], entry["tag"], entry["wrapper"]
-        if not os.path.exists(filepath):
-            print(f"File not found: {filepath}")
-            continue
-        with open(filepath, "r") as f:
-            for line in f:
-                if line.startswith(tag):
-                    print(
-                        f"{filepath}: {line.lstrip(tag).lstrip(wrapper).rstrip(wrapper)}"
-                    )
-                    break
 
 
 def _parse_index_or_slice(s):
@@ -70,10 +60,19 @@ def _parse_index_or_slice(s):
         return int(s)
 
 
+def _filter_occurences(occurences, filter):
+    filter = filter if filter else ":"
+    if isinstance(filter, str):
+        filtered_occurences = occurences[_parse_index_or_slice(filter)]
+    elif isinstance(filter, list):
+        filtered_occurences = [o for i, o in enumerate(occurences) if i in occurences]
+    return filtered_occurences
+
+
 def _set_tag_value(
     filepath: str = "",
     tag: str = "",
-    occurences: Union[str, list[int]] = ":",
+    occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = None,
     value: str = "",
 ):
@@ -85,13 +84,9 @@ def _set_tag_value(
         if line.startswith(tag):
             found_occurences.append(i)
 
-    occurences = occurences if occurences else ":"
-    if isinstance(occurences, str):
-        filtered_occurences = found_occurences[_parse_index_or_slice(occurences)]
-    elif isinstance(occurences, list):
-        filtered_occurences = [
-            o for i, o in enumerate(found_occurences) if i in occurences
-        ]
+    filtered_occurences = _filter_occurences(
+        occurences=found_occurences, filter=occurences_slice
+    )
     for occurence_index in filtered_occurences:
         lines[occurence_index] = (
             f"{tag}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}"
@@ -100,6 +95,42 @@ def _set_tag_value(
     with open(filepath, "w") as f:
         lines = [line + "\n" for line in lines]
         f.writelines(lines)
+
+
+def _get_tag_value(
+    filepath: str = "",
+    tag: str = "",
+    occurences_slice: Union[str, list[int]] = ":",
+    wrapper: str = None,
+    verbosity: int = 0
+):
+    if verbosity >= 2:
+        print(f"\
+              Path: {filepath}\n\
+              Tag: {tag} \n\
+              Occurences: {occurences_slice if occurences_slice != ":" else "All"}\n\
+              Wrapper: {wrapper if wrapper else "None"}\
+            ")
+        
+    found_occurences = []
+    with open(filepath, "r") as f:
+        lines = f.read().splitlines()
+
+    for i, line in enumerate(lines):
+        if line.startswith(tag):
+            found_occurences.append(i)
+
+    filtered_occurences = _filter_occurences(
+        occurences=found_occurences, filter=occurences_slice
+    )
+
+    for occurence_index in filtered_occurences:
+        if verbosity >= 1:
+            print(lines[occurence_index])
+            continue
+
+        print(lines[occurence_index].lstrip(tag))
+
 
 
 def _set_lc_value(
@@ -121,11 +152,32 @@ def _set_lc_value(
         f.writelines(lines)
 
 
+def _get_lc_value(
+    filepath: str = "",
+    line: str = "",
+    column: int = 0,
+    wrapper: str = "",
+    verbosity: int = 0
+):
+    if verbosity >= 2:
+        print(f"\
+              File: {filepath}\n\
+              Regex: {line} \n\
+              Column: {column}\n\
+              Wrapper: {wrapper if wrapper else "None"}\
+            ")
+        
+    with open(filepath, "r") as f:
+        lines = f.read().splitlines()
+
+    print(lines[line][column:])
+
+
 def _set_regex_value(
     filepath: str = "",
     regex: str = "",
     group: int = 0,
-    occurences: Union[str, list[int]] = ":",
+    occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = "",
     value: str = "",
 ):
@@ -133,18 +185,16 @@ def _set_regex_value(
         lines = f.read().splitlines()
 
     found_occurences = []
+
     for i, line in enumerate(lines):
         m = re.search(regex, line)
         if m:
             found_occurences.append((i, m))
 
-    occurences = occurences if occurences else ":"
-    if isinstance(occurences, str):
-        filtered_occurences = found_occurences[_parse_index_or_slice(occurences)]
-    elif isinstance(occurences, list):
-        filtered_occurences = [
-            o for i, o in enumerate(found_occurences) if i in occurences
-        ]
+    filtered_occurences = _filter_occurences(
+        occurences=found_occurences, filter=occurences_slice
+    )
+
     for occurence_index, occurence_match in filtered_occurences:
         if not group:
             lines[occurence_index] = (
@@ -159,6 +209,47 @@ def _set_regex_value(
     with open(filepath, "w") as f:
         lines = [line + "\n" for line in lines]
         f.writelines(lines)
+
+
+def _get_regex_value(
+    filepath: str = "",
+    regex: str = "",
+    group: int = 0,
+    occurences_slice: Union[str, list[int]] = ":",
+    wrapper: str = "",
+    verbosity: int = 0
+):
+    if verbosity >= 2:
+        print(f"\
+              File: {filepath}\n\
+              Regex: {regex} \n\
+              Group: {group if group else "None"}\n\
+              Occurences: {occurences_slice if occurences_slice != ":" else "All"}\n\
+              Wrapper: {wrapper if wrapper else "None"}\
+            ")
+        
+    with open(filepath, "r") as f:
+        lines = f.read().splitlines()
+
+    found_occurences = []
+
+    for i, line in enumerate(lines):
+        m = re.search(regex, line)
+        if m:
+            found_occurences.append((i, m))
+
+    filtered_occurences = _filter_occurences(
+        occurences=found_occurences, filter=occurences_slice
+    )
+
+    for occurence_index, occurence_match in filtered_occurences:
+        if verbosity >= 1:
+            print(line[occurence_index])
+            continue
+        if not group:
+            print(occurence_match.string)
+        else:
+            print(occurence_match.group(group))
 
 
 def set_value(args):
@@ -181,11 +272,11 @@ def set_value(args):
             _set_tag_value(
                 filepath=filepath,
                 tag=tag,
-                occurences=occurences,
+                occurences_slice=occurences,
                 wrapper=wrapper,
                 value=args.value,
             )
-        elif type == "tag":
+        elif type == "lc":
             line = entry["line"]
             column = entry["column"]
             _set_lc_value(
@@ -203,9 +294,54 @@ def set_value(args):
                 filepath=filepath,
                 regex=regex,
                 group=group,
-                occurences=occurences,
+                occurences_slice=occurences,
                 wrapper=wrapper,
                 value=args.value,
+            )
+
+
+def get_value(args):
+    """Get the value associated with a tag in files listed in bump.cfg."""
+    config = parse_config(args.e, args.o)
+    for entry in config.values():
+        type, filepath, wrapper = (
+            entry["type"],
+            entry["filepath"],
+            entry["wrapper"],
+        )
+
+        if not os.path.exists(filepath):
+            print(f"File not found: {filepath}")
+            continue
+
+        if type == "tag":
+            tag = entry["tag"]
+            occurences = entry["occurences"]
+            _get_tag_value(
+                filepath=filepath,
+                tag=tag,
+                occurences_slice=occurences,
+                wrapper=wrapper,
+            )
+        elif type == "lc":
+            line = entry["line"]
+            column = entry["column"]
+            _get_lc_value(
+                filepath=filepath,
+                line=line,
+                column=column,
+                wrapper=wrapper,
+            )
+        elif type == "regex":
+            regex = entry["regex"]
+            group = entry["group"]
+            occurences = entry["occurences"]
+            _get_regex_value(
+                filepath=filepath,
+                regex=regex,
+                group=group,
+                occurences_slice=occurences,
+                wrapper=wrapper,
             )
 
 
@@ -252,15 +388,33 @@ def remove_entry(args):
         json.dump(config, f, indent=4)
 
 
+def edit_config():
+    editor = os.environ.get("EDITOR", "nano")
+    subprocess.run([editor, "bump.cfg"])
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="bump", description="A CLI tool to manage values in multiple files."
     )
+
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbosity",
+        help="Enable verbose output",
+        action='count', 
+        default=0,
+        required=False,
+    )
+
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("init", help="Initialize bump.cfg").set_defaults(
         func=init_config
     )
+
+    subparsers.add_parser("edit", help="Opens the bump.cfg in the standard editor.")
 
     get_parser = subparsers.add_parser(
         "get", help="Get a value from files listed in bump.cfg"
