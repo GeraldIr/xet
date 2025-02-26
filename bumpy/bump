@@ -102,16 +102,18 @@ def _get_tag_value(
     tag: str = "",
     occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = None,
-    verbosity: int = 0
+    verbosity: int = 0,
 ):
     if verbosity >= 2:
-        print(f"\
+        print(
+            f"\
               Path: {filepath}\n\
               Tag: {tag} \n\
               Occurences: {occurences_slice if occurences_slice != ':' else 'All'}\n\
               Wrapper: {wrapper if wrapper else 'None'}\
-            ")
-        
+            "
+        )
+
     found_occurences = []
     with open(filepath, "r") as f:
         lines = f.read().splitlines()
@@ -130,7 +132,6 @@ def _get_tag_value(
             continue
 
         print(lines[occurence_index].lstrip(tag))
-
 
 
 def _set_lc_value(
@@ -157,16 +158,18 @@ def _get_lc_value(
     line: str = "",
     column: int = 0,
     wrapper: str = "",
-    verbosity: int = 0
+    verbosity: int = 0,
 ):
     if verbosity >= 2:
-        print(f"\
+        print(
+            f"\
               File: {filepath}\n\
               Regex: {line} \n\
               Column: {column}\n\
               Wrapper: {wrapper if wrapper else 'None'}\
-            ")
-        
+            "
+        )
+
     with open(filepath, "r") as f:
         lines = f.read().splitlines()
 
@@ -217,17 +220,19 @@ def _get_regex_value(
     group: int = 0,
     occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = "",
-    verbosity: int = 0
+    verbosity: int = 0,
 ):
     if verbosity >= 2:
-        print(f"\
+        print(
+            f"\
               File: {filepath}\n\
               Regex: {regex} \n\
-              Group: {group if group else "None"}\n\
+              Group: {group if group else 'None'}\n\
               Occurences: {occurences_slice if occurences_slice != ':' else 'All'}\n\
-              Wrapper: {wrapper if wrapper else "None"}\
-            ")
-        
+              Wrapper: {wrapper if wrapper else 'None'}\
+            "
+        )
+
     with open(filepath, "r") as f:
         lines = f.read().splitlines()
 
@@ -403,7 +408,7 @@ def main():
         "--verbose",
         dest="verbosity",
         help="Enable verbose output",
-        action='count', 
+        action="count",
         default=0,
         required=False,
     )
