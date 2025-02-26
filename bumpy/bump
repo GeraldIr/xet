@@ -86,6 +86,7 @@ def _set_tag_value(
     occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = None,
     end: str = "",
+    padding: int = 1,
     value: str = "",
 ):
     found_occurences = []
@@ -105,7 +106,7 @@ def _set_tag_value(
             after_wrapper = lines[occurence_index].lstrip(tag).split(wrapper)[2]
             end = after_wrapper + end
         lines[occurence_index] = (
-            f"{tag}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{end}"
+            f"{tag}{' ' * padding}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{' ' * padding}{end}"
         )
 
     with open(filepath, "w") as f:
@@ -159,6 +160,7 @@ def _set_lc_value(
     column: int = 0,
     wrapper: str = "",
     end: str = "",
+    padding: int = 1,
     value: str = "",
 ):
     with open(filepath, "r") as f:
@@ -169,7 +171,7 @@ def _set_lc_value(
         end = after_wrapper + end
 
     lines[line] = (
-        f"{lines[line][:column]}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{end}"
+        f"{lines[line][:column]}{' ' * padding}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{' ' * padding}{end}"
     )
 
     with open(filepath, "w") as f:
@@ -303,24 +305,28 @@ def set_value(args):
             tag = entry["tag"]
             occurences = entry["occurences"]
             end = entry["end"]
+            padding = entry["padding"]
             _set_tag_value(
                 filepath=filepath,
                 tag=tag,
                 occurences_slice=occurences,
                 wrapper=wrapper,
                 end=end,
+                padding=padding,
                 value=args.value,
             )
         elif type == "lc":
             line = entry["line"]
             column = entry["column"]
             end = entry["end"]
+            padding = entry["padding"]
             _set_lc_value(
                 filepath=filepath,
                 line=line,
                 column=column,
                 wrapper=wrapper,
                 end=end,
+                padding=padding,
                 value=args.value,
             )
         elif type == "regex":
@@ -412,11 +418,15 @@ def add_entry(args):
         config[args.name] |= {
             "tag": args.tag,
             "occurences": args.occurences if args.occurences else ":",
+            "end": args.end,
+            "padding": int(args.padding),
         }
     elif args.subcommand == "lc":
         config[args.name] |= {
             "line": int(args.line),
             "column": int(args.column),
+            "end": args.end,
+            "padding": int(args.padding),
         }
     elif args.subcommand == "regex":
         config[args.name] |= {
@@ -545,6 +555,13 @@ def main():
         help="Value will be wrapped in this character (useful for updating values in brackets or commas). Will also be stripped in get-mode.",
     )
     add_tag_parser.add_argument(
+        "--padding",
+        "-p",
+        dest="padding",
+        default=1,
+        help="Amount of whitespace-padding which gets added after tag and before end.",
+    )
+    add_tag_parser.add_argument(
         "--occurences",
         "-o",
         nargs="*",
@@ -555,6 +572,7 @@ def main():
         "-e",
         "--end",
         dest="end",
+        default="",
         help="Will be put after the value and its wrappers, will also be stripped in get mode if present.",
     )
 
@@ -587,9 +605,17 @@ def main():
         help="Value will be wrapped in this character, will also be stripped in get mode.",
     )
     add_lc_parser.add_argument(
+        "--padding",
+        "-p",
+        dest="padding",
+        default=1,
+        help="Amount of whitespace-padding which gets added after tag and before end.",
+    )
+    add_lc_parser.add_argument(
         "-e",
         "--end",
         dest="end",
+        default="",
         help="Will be put after the value and its wrappers, will also be stripped in get mode if present.",
     )
     add_lc_parser.add_argument(
