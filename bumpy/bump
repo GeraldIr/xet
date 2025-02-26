@@ -108,8 +108,8 @@ def _get_tag_value(
         print(f"\
               Path: {filepath}\n\
               Tag: {tag} \n\
-              Occurences: {occurences_slice if occurences_slice != ":" else "All"}\n\
-              Wrapper: {wrapper if wrapper else "None"}\
+              Occurences: {occurences_slice if occurences_slice != ':' else 'All'}\n\
+              Wrapper: {wrapper if wrapper else 'None'}\
             ")
         
     found_occurences = []
@@ -164,7 +164,7 @@ def _get_lc_value(
               File: {filepath}\n\
               Regex: {line} \n\
               Column: {column}\n\
-              Wrapper: {wrapper if wrapper else "None"}\
+              Wrapper: {wrapper if wrapper else 'None'}\
             ")
         
     with open(filepath, "r") as f:
@@ -224,7 +224,7 @@ def _get_regex_value(
               File: {filepath}\n\
               Regex: {regex} \n\
               Group: {group if group else "None"}\n\
-              Occurences: {occurences_slice if occurences_slice != ":" else "All"}\n\
+              Occurences: {occurences_slice if occurences_slice != ':' else 'All'}\n\
               Wrapper: {wrapper if wrapper else "None"}\
             ")
         
