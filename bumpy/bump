@@ -36,9 +36,10 @@ def parse_config(except_flags=None, only_flags=None, names=None):
 
     if names:
         names = [name for name in names if name in config]
-        return {k: v for k, v in zip(names, [config[name] for name in names])}
+        config = {k: v for k, v in zip(names, [config[name] for name in names])}
 
     filtered_config = {}
+
     for key, entry in config.items():
         flags = entry["flags"] if (entry and "flags" in entry) else None
         if flags:
