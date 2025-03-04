@@ -57,7 +57,7 @@ bump add tag <name> <filepath> <tag> [options]
 ```sh
 bump add lc <name> <filepath> <line> <column> [options]
 ```
-- `<line>`: Line number (zero-based index).
+- `<line>`: Line number
 - `<column>`: Column position after which the value is placed.
 - Options:
    - `-f, --flags <flags>`: Optional flags for filtering.
