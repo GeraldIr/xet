@@ -9,7 +9,7 @@ from typing import Union
 
 
 CONFIG_FILE = "bump.cfg"
-VERSION = "0.1.1"
+VERSION = "0.2.0"
 
 NL = "\n"
 
