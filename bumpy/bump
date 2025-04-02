@@ -25,7 +25,7 @@ def init_config(args):
         ...
 
 
-def parse_config(except_flags=None, only_flags=None, names=None):
+def parse_config(except_flags=None, only_flags=None, names=None, preset=None):
     """Parse bump.cfg, handling entries and applying -e/-o/-n filters."""
 
     except_flags = set(except_flags) if except_flags else set()
@@ -33,6 +33,15 @@ def parse_config(except_flags=None, only_flags=None, names=None):
 
     with open(CONFIG_FILE, mode="r") as f:
         config: dict = json.load(f)
+
+    if preset:
+        preset_entries = [
+            name for name in config.keys() if preset in config[name]["presets"]
+        ]
+        return {
+            k: v
+            for k, v in zip(preset_entries, [config[name] for name in preset_entries])
+        }
 
     if names:
         names = [name for name in names if name in config]
@@ -50,8 +59,8 @@ def parse_config(except_flags=None, only_flags=None, names=None):
         elif only_flags:
             continue
         if entry["type"] == "lc":
-            entry["column"] = entry["column"] - 1
-            entry["line"] = entry["line"] - 1
+            entry["column"] = entry["column"]
+            entry["line"] = entry["line"]
         filtered_config[key] = entry
 
     return filtered_config
@@ -66,8 +75,11 @@ def _parse_index_or_slice(s):
         return int(s)
 
 
-def _sanitize_value(value: str = "", wrapper: str = None, end: str = None):
+def _sanitize_value(
+    value: str = "", wrapper: str = None, end: str = None, padding: int = 0
+):
     value = value if not end else value.rstrip(end)
+    value = value if not padding else value[padding:-padding]
     return value if not wrapper else value.lstrip(wrapper).split(wrapper)[0]
 
 
@@ -86,7 +98,7 @@ def _set_tag_value(
     occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = None,
     end: str = "",
-    padding: int = 1,
+    padding: int = 0,
     value: str = "",
 ):
     found_occurences = []
@@ -120,6 +132,7 @@ def _get_tag_value(
     occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = None,
     end: str = "",
+    padding: int = 0,
     verbosity: int = 0,
 ):
     if verbosity >= 2:
@@ -149,7 +162,10 @@ def _get_tag_value(
 
         print(
             _sanitize_value(
-                value=lines[occurence_index].lstrip(tag), wrapper=wrapper, end=end
+                value=lines[occurence_index].lstrip(tag),
+                wrapper=wrapper,
+                end=end,
+                padding=padding,
             )
         )
 
@@ -160,11 +176,20 @@ def _set_lc_value(
     column: int = 0,
     wrapper: str = "",
     end: str = "",
-    padding: int = 1,
+    padding: int = 0,
     value: str = "",
 ):
     with open(filepath, "r") as f:
         lines = f.read().splitlines()
+
+    line -= 1
+    column -= 1
+
+    if len(lines) <= line:
+        lines += [""] * ((line) - len(lines) + 1)
+
+    if len(lines[line]) <= column:
+        lines[line] += " " * (column - len(lines[line]) + 1)
 
     if wrapper:
         after_wrapper = lines[line][:column].split(wrapper)[2]
@@ -185,8 +210,13 @@ def _get_lc_value(
     column: int = 0,
     wrapper: str = "",
     end: str = "",
+    padding: int = 0,
     verbosity: int = 0,
 ):
+
+    line -= 1
+    column -= 1
+
     if verbosity >= 2:
         print(
             f"File: {filepath}\n"
@@ -201,7 +231,11 @@ def _get_lc_value(
 
     if verbosity >= 1:
         print(f"Line:\n{lines[line]}\nValue:")
-    print(_sanitize_value(value=lines[line][column:], wrapper=wrapper, end=end))
+    print(
+        _sanitize_value(
+            value=lines[line][column:], wrapper=wrapper, end=end, padding=padding
+        )
+    )
 
 
 def _set_regex_value(
@@ -287,60 +321,71 @@ def _get_regex_value(
             )
 
 
+def _set_value(entry, value):
+    type, filepath, wrapper = (
+        entry["type"],
+        entry["filepath"],
+        entry["wrapper"],
+    )
+
+    if not os.path.exists(filepath):
+        print(f"File not found: {filepath}")
+        return
+
+    if type == "tag":
+        tag = entry["tag"]
+        occurences = entry["occurences"]
+        end = entry["end"]
+        padding = entry["padding"]
+        _set_tag_value(
+            filepath=filepath,
+            tag=tag,
+            occurences_slice=occurences,
+            wrapper=wrapper,
+            end=end,
+            padding=padding,
+            value=value,
+        )
+    elif type == "lc":
+        line = entry["line"]
+        column = entry["column"]
+        end = entry["end"]
+        padding = entry["padding"]
+        _set_lc_value(
+            filepath=filepath,
+            line=line,
+            column=column,
+            wrapper=wrapper,
+            end=end,
+            padding=padding,
+            value=value,
+        )
+    elif type == "regex":
+        regex = entry["regex"]
+        group = entry["group"]
+        occurences = entry["occurences"]
+        _set_regex_value(
+            filepath=filepath,
+            regex=regex,
+            group=group,
+            occurences_slice=occurences,
+            wrapper=wrapper,
+            value=value,
+        )
+
+
+def set_presets(args):
+    config = parse_config(preset=args.preset)
+
+    for entry in config.values():
+        _set_value(entry=entry, value=entry["presets"][args.preset])
+
+
 def set_value(args):
     """Set the value associated with a tag in files listed in bump.cfg."""
     config = parse_config(args.e, args.o, args.n)
     for entry in config.values():
-        type, filepath, wrapper = (
-            entry["type"],
-            entry["filepath"],
-            entry["wrapper"],
-        )
-
-        if not os.path.exists(filepath):
-            print(f"File not found: {filepath}")
-            continue
-
-        if type == "tag":
-            tag = entry["tag"]
-            occurences = entry["occurences"]
-            end = entry["end"]
-            padding = entry["padding"]
-            _set_tag_value(
-                filepath=filepath,
-                tag=tag,
-                occurences_slice=occurences,
-                wrapper=wrapper,
-                end=end,
-                padding=padding,
-                value=args.value,
-            )
-        elif type == "lc":
-            line = entry["line"]
-            column = entry["column"]
-            end = entry["end"]
-            padding = entry["padding"]
-            _set_lc_value(
-                filepath=filepath,
-                line=line,
-                column=column,
-                wrapper=wrapper,
-                end=end,
-                padding=padding,
-                value=args.value,
-            )
-        elif type == "regex":
-            regex = entry["regex"]
-            group = entry["group"]
-            occurences = entry["occurences"]
-            _set_regex_value(
-                filepath=filepath,
-                regex=regex,
-                group=group,
-                occurences_slice=occurences,
-                wrapper=wrapper,
-                value=args.value,
-            )
+        _set_value(entry=entry, value=args.value)
 
 
 def get_value(args):
@@ -364,24 +409,28 @@ def get_value(args):
             tag = entry["tag"]
             occurences = entry["occurences"]
             end = entry["end"]
+            padding = entry["padding"]
             _get_tag_value(
                 filepath=filepath,
                 tag=tag,
                 occurences_slice=occurences,
                 wrapper=wrapper,
                 end=end,
+                padding=padding,
                 verbosity=verbosity,
             )
         elif type == "lc":
             line = entry["line"]
             column = entry["column"]
             end = entry["end"]
+            padding = entry["padding"]
             _get_lc_value(
                 filepath=filepath,
                 line=line,
                 column=column,
                 wrapper=wrapper,
                 end=end,
+                padding=padding,
                 verbosity=verbosity,
             )
         elif type == "regex":
@@ -412,6 +461,7 @@ def add_entry(args):
         "filepath": args.filepath,
         "flags": args.flags,
         "wrapper": args.wrapper,
+        "presets": {k: v for k, v in args.presets},
     }
 
     if args.subcommand == "tag":
@@ -456,7 +506,7 @@ def edit_config(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="bump", description="A CLI tool to manage values in multiple files."
+        prog="bump", description="A CLI tool to manage values across multiple files."
     )
 
     subparsers = parser.add_subparsers(
@@ -536,139 +586,169 @@ def main():
         default=0,
     )
 
+    """
+    ADD PARSER AND SUB-PARSERS
+    """
+
     add_parser = subparsers.add_parser("add", help="Add a new entry to bump config")
+
     add_sub_parser = add_parser.add_subparsers(dest="subcommand")
+
     add_tag_parser = add_sub_parser.add_parser(
         "tag", help="Add a tag-type entry to the bump config."
-    )
-    add_tag_parser.set_defaults(func=add_entry)
-    add_tag_parser.add_argument("name", help="The name of the entry in the config.")
-    add_tag_parser.add_argument("filepath", help="Path to the file")
-    add_tag_parser.add_argument("tag", help="Tag identifying the line in the file.")
-    add_tag_parser.add_argument(
-        "--flags", "-f", nargs="*", help="Optional flags for filtering"
-    )
-    add_tag_parser.add_argument(
-        "--wrapper",
-        "-w",
-        dest="wrapper",
-        help="Value will be wrapped in this character (useful for updating values in brackets or commas). Will also be stripped in get-mode.",
-    )
-    add_tag_parser.add_argument(
-        "--padding",
-        "-p",
-        dest="padding",
-        default=1,
-        help="Amount of whitespace-padding which gets added after tag and before end.",
-    )
-    add_tag_parser.add_argument(
-        "--occurences",
-        "-o",
-        nargs="*",
-        dest="occurences",
-        help="Which occurence of the tag should be included, can be an integer, list of integers or the string 'all'",
-    )
-    add_tag_parser.add_argument(
-        "-e",
-        "--end",
-        dest="end",
-        default="",
-        help="Will be put after the value and its wrappers, will also be stripped in get mode if present.",
-    )
-
-    add_tag_parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="verbosity",
-        help="Enable verbose output",
-        action="count",
-        default=0,
     )
 
     add_lc_parser = add_sub_parser.add_parser(
         "lc", help="Add a line/column-type entry to the bump config."
-    )
-    add_lc_parser.set_defaults(func=add_entry)
-    add_lc_parser.add_argument("name", help="The name of the entry in the config.")
-    add_lc_parser.add_argument("filepath", help="Path to the file")
-    add_lc_parser.add_argument("line", help="The line at which the value is located")
-    add_lc_parser.add_argument(
-        "column", help="The column after which the value is located"
-    )
-    add_lc_parser.add_argument(
-        "--flags", "-f", nargs="*", help="Optional flags for filtering"
-    )
-    add_lc_parser.add_argument(
-        "--wrapper",
-        "-w",
-        dest="wrapper",
-        help="Value will be wrapped in this character, will also be stripped in get mode.",
-    )
-    add_lc_parser.add_argument(
-        "--padding",
-        "-p",
-        dest="padding",
-        default=1,
-        help="Amount of whitespace-padding which gets added after tag and before end.",
-    )
-    add_lc_parser.add_argument(
-        "-e",
-        "--end",
-        dest="end",
-        default="",
-        help="Will be put after the value and its wrappers, will also be stripped in get mode if present.",
-    )
-    add_lc_parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="verbosity",
-        help="Enable verbose output",
-        action="count",
-        default=0,
     )
 
     add_regex_parser = add_sub_parser.add_parser(
         "regex",
         help="Match tags with regex instead of plaintext, also supports group matching the values place.",
     )
-    add_regex_parser.set_defaults(func=add_entry)
-    add_regex_parser.add_argument("name", help="The name of the entry in the config.")
-    add_regex_parser.add_argument("filepath", help="Path to the file")
+
+    add_sub_parsers = [add_tag_parser, add_lc_parser, add_regex_parser]
+
+    list(map(lambda sub: sub.set_defaults(func=add_entry), add_sub_parsers))
+
+    # non-unique positional arguments
+
+    list(
+        map(  # Add name argument to all add sub parsers
+            lambda sub: sub.add_argument(
+                "name", help="The name of the entry in the config."
+            ),
+            add_sub_parsers,
+        )
+    )
+
+    list(
+        map(  # Add Filepath argument to all add sub parsers
+            lambda sub: sub.add_argument("filepath", help="Path to the file"),
+            add_sub_parsers,
+        )
+    )
+
+    # unique positional arguments
+
+    # tag parser
+    add_tag_parser.add_argument("tag", help="Tag identifying the line in the file.")
+
+    # lc parser
+    add_lc_parser.add_argument("line", help="The line at which the value is located")
+    add_lc_parser.add_argument(
+        "column", help="The column after which the value is located"
+    )
+
+    # regex parser
     add_regex_parser.add_argument(
         "regex",
         help="The regular expression, if no group is specified values are updated after any given match (like tags).",
     )
+
+    # non-unique optional arguments
+
+    list(  # Add Padding argument to tag and lc add sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--padding",
+                "-d",
+                dest="padding",
+                default=0,
+                help="Amount of whitespace-padding which gets added after tag and before end.",
+            ),
+            [add_tag_parser, add_lc_parser],
+        )
+    )
+
+    list(  # Add End argument to tag and lc add sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "-e",
+                "--end",
+                dest="end",
+                default="",
+                help="Will be put after the value and its wrappers, will also be stripped in get mode if present.",
+            ),
+            [add_tag_parser, add_lc_parser],
+        )
+    )
+
+    list(  # Add Occurences argument to tag and regex add sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--occurences",
+                "-o",
+                nargs="*",
+                dest="occurences",
+                help="Which occurence of the tag should be included, can be an integer, list of integers or the string 'all'",
+            ),
+            [add_tag_parser, add_regex_parser],
+        )
+    )
+
+    list(  # Add Flags argument to all add sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--flags", "-f", nargs="*", help="Optional flags for filtering"
+            ),
+            add_sub_parsers,
+        )
+    )
+
+    list(  # Add Verbosity argument to all add sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "-v",
+                "--verbose",
+                dest="verbosity",
+                help="Enable verbose output",
+                action="count",
+                default=0,
+            ),
+            add_sub_parsers,
+        )
+    )
+
+    list(  # Add Wrapper argument to all add sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--wrapper",
+                "-w",
+                dest="wrapper",
+                help="Value will be wrapped in this character (useful for updating values in brackets or commas). Will also be stripped in get-mode.",
+            ),
+            add_sub_parsers,
+        )
+    )
+
+    list(  # Add Preset argument to all add sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--preset",
+                "-p",
+                dest="presets",
+                action="append",
+                nargs=2,
+                help="<Preset Name> <Preset Value> presets can be set with bump preset <Preset Name>.",
+            ),
+            add_sub_parsers,
+        )
+    )
+
+    # unique optional arguments
+
+    # regex parser
     add_regex_parser.add_argument(
         "--group",
         "-g",
         nargs=1,
         help="The group number which should be interpreted as the value. 0 means the entire match is interpreted as the value. Everything but the value itself is preserved, useful when values aren't at the end of a line",
     )
-    add_regex_parser.add_argument(
-        "--occurences",
-        "-o",
-        nargs="*",
-        dest="occurences",
-        help="Which occurence of any matches should be included, can be an integer or list of integers, by default all occurences are updated.",
-    )
-    add_regex_parser.add_argument(
-        "--flags", "-f", nargs="*", help="Optional flags for filtering"
-    )
-    add_regex_parser.add_argument(
-        "--wrapper",
-        "-w",
-        dest="wrapper",
-        help="Value will be wrapped in this character (useful for updating values in brackets or commas).",
-    )
 
-    add_regex_parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="verbosity",
-        help="Enable verbose output",
-        action="count",
-        default=0,
-    )
+    """
+    REMOVE PARSER
+    """
 
     remove_parser = subparsers.add_parser(
         "remove", help="Remove an entry from bump.cfg"
@@ -684,6 +764,15 @@ def main():
         action="count",
         default=0,
     )
+
+    """
+    PRESET PARSER
+    """
+    preset_parser = subparsers.add_parser(
+        "preset", help="Set all values to a given preset."
+    )
+    preset_parser.set_defaults(func=set_presets)
+    preset_parser.add_argument("preset", help="Name of the preset")
 
     args = parser.parse_args()
     args.func(args)
