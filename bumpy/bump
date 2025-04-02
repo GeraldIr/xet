@@ -75,8 +75,11 @@ def _parse_index_or_slice(s):
         return int(s)
 
 
-def _sanitize_value(value: str = "", wrapper: str = None, end: str = None):
+def _sanitize_value(
+    value: str = "", wrapper: str = None, end: str = None, padding: int = 0
+):
     value = value if not end else value.rstrip(end)
+    value = value if not padding else value[padding:-padding]
     return value if not wrapper else value.lstrip(wrapper).split(wrapper)[0]
 
 
@@ -129,6 +132,7 @@ def _get_tag_value(
     occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = None,
     end: str = "",
+    padding: int = 0,
     verbosity: int = 0,
 ):
     if verbosity >= 2:
@@ -158,7 +162,10 @@ def _get_tag_value(
 
         print(
             _sanitize_value(
-                value=lines[occurence_index].lstrip(tag), wrapper=wrapper, end=end
+                value=lines[occurence_index].lstrip(tag),
+                wrapper=wrapper,
+                end=end,
+                padding=padding,
             )
         )
 
@@ -203,8 +210,13 @@ def _get_lc_value(
     column: int = 0,
     wrapper: str = "",
     end: str = "",
+    padding: int = 0,
     verbosity: int = 0,
 ):
+
+    line -= 1
+    column -= 1
+
     if verbosity >= 2:
         print(
             f"File: {filepath}\n"
@@ -219,7 +231,11 @@ def _get_lc_value(
 
     if verbosity >= 1:
         print(f"Line:\n{lines[line]}\nValue:")
-    print(_sanitize_value(value=lines[line][column:], wrapper=wrapper, end=end))
+    print(
+        _sanitize_value(
+            value=lines[line][column:], wrapper=wrapper, end=end, padding=padding
+        )
+    )
 
 
 def _set_regex_value(
@@ -393,24 +409,28 @@ def get_value(args):
             tag = entry["tag"]
             occurences = entry["occurences"]
             end = entry["end"]
+            padding = entry["padding"]
             _get_tag_value(
                 filepath=filepath,
                 tag=tag,
                 occurences_slice=occurences,
                 wrapper=wrapper,
                 end=end,
+                padding=padding,
                 verbosity=verbosity,
             )
         elif type == "lc":
             line = entry["line"]
             column = entry["column"]
             end = entry["end"]
+            padding = entry["padding"]
             _get_lc_value(
                 filepath=filepath,
                 line=line,
                 column=column,
                 wrapper=wrapper,
                 end=end,
+                padding=padding,
                 verbosity=verbosity,
             )
         elif type == "regex":
