@@ -50,7 +50,9 @@ bump add tag <name> <filepath> <tag> [options]
    - `-w, --wrapper <char>`: Wrap the value with a character (e.g., quotes), also gets stripped in get mode.
    - `-o, --occurences <index or slice>`: Specify which occurrences to modify (string formatted like a list index in python, can be slices).
    - `-e, --end <str>`: Will get appended in the line after value and wrappers, also gets stripped in get mode.
-   - `-p, --padding <int>`: Number of whitespace-padding which gets added after tag and before end. 
+   - `-d, --padding <int>`: Number of whitespace-padding which gets added after tag and before end. 
+   - `-p, --preset <str> <str>`: Name and value of preset, option can be repeated to add multiple presets. 
+
 
 #### Add a Line/Column-Based Entry
 
@@ -63,7 +65,8 @@ bump add lc <name> <filepath> <line> <column> [options]
    - `-f, --flags <flags>`: Optional flags for filtering.
    - `-w, --wrapper <char>`: Wrap the value with a character (e.g., quotes), also gets stripped in get mode.
    - `-e, --end <str>`: Will get appended in the line after value and wrappers, also gets stripped in get mode.
-   - `-p, --padding <int>`: Amount of whitespace-padding which gets added after tag and before end. 
+   - `-d, --padding <int>`: Amount of whitespace-padding which gets added after tag and before end.
+   - `-p, --preset <str> <str>`: Name and value of preset, option can be repeated to add multiple presets.  
 
 #### Add a Regex-Based Entry
 
@@ -77,6 +80,7 @@ bump add regex <name> <filepath> <regex> [options]
    - `-g, --group <int>`: Capture group number to update.
    - `-o, --occurences <index or slice>`: Specify which occurrences to modify (string formatted like a list index in python, can be slices).
    - `-w, --wrapper <char>`: Wrap the value with a character (e.g., quotes), also gets stripped in get mode.
+   - `-p, --preset <str> <str>`: Name and value of preset, option can be repeated to add multiple presets. 
 
 ### Get Values from Configured Files
 
@@ -100,6 +104,14 @@ Options:
    - `-e, --except <flags>`: Exclude entries with specified flags.
    - `-o, --only <flags>`: Include only entries with specified flags.
    - `-n, --names <names>`: Include only entries with specified names. 
+
+### Set Values to Preset
+
+```sh
+bump preset <preset>
+```
+
+- `<preset>`: Name of the preset to be set.
 
 ### Remove an Entry
 
