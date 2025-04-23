@@ -6,10 +6,11 @@ import os
 import re
 import subprocess
 from typing import Union
+from fabric import Connection
 
 
 CONFIG_FILE = "bump.cfg"
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 NL = "\n"
 
@@ -92,6 +93,36 @@ def _filter_occurences(occurences: list, filter: str = ":"):
     return filtered_occurences
 
 
+def _get_file_lines(filepath: str = "", ssh: str = None):
+    if ssh:
+        with Connection(ssh) as c, c.sftp() as sftp:
+            with sftp.open(filepath, "r") as remote_file:
+                try:
+                    return [
+                        line.decode("utf-8") for line in remote_file.read().splitlines()
+                    ]
+                finally:
+                    remote_file.close()
+    else:
+        with open(filepath, "r") as f:
+            return f.read().splitlines()
+
+
+def _set_file_lines(filepath: str = "", ssh: str = None, lines: list = []):
+    if ssh:
+        with Connection(ssh) as c, c.sftp() as sftp:
+            with sftp.open(filepath, "w") as remote_file:
+                try:
+                    lines = [line + "\n" for line in lines]
+                    remote_file.writelines(lines)
+                finally:
+                    remote_file.close()
+    else:
+        with open(filepath, "w") as f:
+            lines = [line + "\n" for line in lines]
+            f.writelines(lines)
+
+
 def _set_tag_value(
     filepath: str = "",
     tag: str = "",
@@ -100,10 +131,11 @@ def _set_tag_value(
     end: str = "",
     padding: int = 0,
     value: str = "",
+    ssh: str = None,
 ):
     found_occurences = []
-    with open(filepath, "r") as f:
-        lines = f.read().splitlines()
+
+    lines = _get_file_lines(filepath=filepath, ssh=ssh)
 
     for i, line in enumerate(lines):
         if line.startswith(tag):
@@ -121,9 +153,7 @@ def _set_tag_value(
             f"{tag}{' ' * padding}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{' ' * padding}{end}"
         )
 
-    with open(filepath, "w") as f:
-        lines = [line + "\n" for line in lines]
-        f.writelines(lines)
+    _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
 
 
 def _get_tag_value(
@@ -134,6 +164,7 @@ def _get_tag_value(
     end: str = "",
     padding: int = 0,
     verbosity: int = 0,
+    ssh: str = None,
 ):
     if verbosity >= 2:
         print(
@@ -145,8 +176,8 @@ def _get_tag_value(
         )
 
     found_occurences = []
-    with open(filepath, "r") as f:
-        lines = f.read().splitlines()
+
+    lines = _get_file_lines(filepath=filepath, ssh=ssh)
 
     for i, line in enumerate(lines):
         if line.startswith(tag):
@@ -178,9 +209,10 @@ def _set_lc_value(
     end: str = "",
     padding: int = 0,
     value: str = "",
+    ssh: str = None,
 ):
-    with open(filepath, "r") as f:
-        lines = f.read().splitlines()
+
+    lines = _get_file_lines(filepath=filepath, ssh=ssh)
 
     line -= 1
     column -= 1
@@ -199,9 +231,7 @@ def _set_lc_value(
         f"{lines[line][:column]}{' ' * padding}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{' ' * padding}{end}"
     )
 
-    with open(filepath, "w") as f:
-        lines = [line + "\n" for line in lines]
-        f.writelines(lines)
+    _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
 
 
 def _get_lc_value(
@@ -212,6 +242,7 @@ def _get_lc_value(
     end: str = "",
     padding: int = 0,
     verbosity: int = 0,
+    ssh: str = None,
 ):
 
     line -= 1
@@ -226,8 +257,7 @@ def _get_lc_value(
             f"{'End: ' + end + NL if end else ''}"
         )
 
-    with open(filepath, "r") as f:
-        lines = f.read().splitlines()
+    lines = _get_file_lines(filepath=filepath, ssh=ssh)
 
     if verbosity >= 1:
         print(f"Line:\n{lines[line]}\nValue:")
@@ -245,9 +275,9 @@ def _set_regex_value(
     occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = "",
     value: str = "",
+    ssh: str = None,
 ):
-    with open(filepath, "r") as f:
-        lines = f.read().splitlines()
+    lines = _get_file_lines(filepath=filepath, ssh=ssh)
 
     found_occurences = []
 
@@ -271,9 +301,8 @@ def _set_regex_value(
             lines[occurence_index] = (
                 f"{start}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{end}"
             )
-    with open(filepath, "w") as f:
-        lines = [line + "\n" for line in lines]
-        f.writelines(lines)
+
+    _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
 
 
 def _get_regex_value(
@@ -283,9 +312,9 @@ def _get_regex_value(
     occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = "",
     verbosity: int = 0,
+    ssh: str = None,
 ):
     if verbosity >= 2:
-
         print(
             f"File: {filepath}\n"
             f"Regex: {regex} \n"
@@ -294,8 +323,7 @@ def _get_regex_value(
             f"{'Wrapper: ' + wrapper + NL if wrapper else ''}"
         )
 
-    with open(filepath, "r") as f:
-        lines = f.read().splitlines()
+    lines = _get_file_lines(filepath=filepath, ssh=ssh)
 
     found_occurences = []
 
@@ -322,10 +350,11 @@ def _get_regex_value(
 
 
 def _set_value(entry, value):
-    type, filepath, wrapper = (
+    type, filepath, wrapper, ssh = (
         entry["type"],
         entry["filepath"],
         entry["wrapper"],
+        entry["ssh"],
     )
 
     if not os.path.exists(filepath):
@@ -345,6 +374,7 @@ def _set_value(entry, value):
             end=end,
             padding=padding,
             value=value,
+            ssh=ssh,
         )
     elif type == "lc":
         line = entry["line"]
@@ -359,6 +389,7 @@ def _set_value(entry, value):
             end=end,
             padding=padding,
             value=value,
+            ssh=ssh,
         )
     elif type == "regex":
         regex = entry["regex"]
@@ -371,6 +402,7 @@ def _set_value(entry, value):
             occurences_slice=occurences,
             wrapper=wrapper,
             value=value,
+            ssh=ssh,
         )
 
 
@@ -392,10 +424,11 @@ def get_value(args):
     """Get the value associated with a tag in files listed in bump.cfg."""
     config = parse_config(args.e, args.o, args.n)
     for name, entry in config.items():
-        type, filepath, wrapper, verbosity = (
+        type, filepath, wrapper, ssh, verbosity = (
             entry["type"],
             entry["filepath"],
             entry["wrapper"],
+            entry["ssh"],
             args.verbosity,
         )
         if verbosity >= 2:
@@ -418,6 +451,7 @@ def get_value(args):
                 end=end,
                 padding=padding,
                 verbosity=verbosity,
+                ssh=ssh,
             )
         elif type == "lc":
             line = entry["line"]
@@ -432,6 +466,7 @@ def get_value(args):
                 end=end,
                 padding=padding,
                 verbosity=verbosity,
+                ssh=ssh,
             )
         elif type == "regex":
             regex = entry["regex"]
@@ -444,6 +479,7 @@ def get_value(args):
                 occurences_slice=occurences,
                 wrapper=wrapper,
                 verbosity=verbosity,
+                ssh=ssh,
             )
         if verbosity >= 2:
             print("----------------------------")
@@ -462,6 +498,7 @@ def add_entry(args):
         "flags": args.flags,
         "wrapper": args.wrapper,
         "presets": {k: v for k, v in args.presets},
+        "ssh": args.ssh,
     }
 
     if args.subcommand == "tag":
@@ -691,6 +728,15 @@ def main():
         map(
             lambda sub: sub.add_argument(
                 "--flags", "-f", nargs="*", help="Optional flags for filtering"
+            ),
+            add_sub_parsers,
+        )
+    )
+
+    list(  # Add ssh argument to all add sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--ssh", "-s", dest="ssh", help="SSH Host to connect to."
             ),
             add_sub_parsers,
         )
