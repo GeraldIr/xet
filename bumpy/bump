@@ -736,7 +736,10 @@ def main():
     list(  # Add ssh argument to all add sub parsers
         map(
             lambda sub: sub.add_argument(
-                "--ssh", "-s", dest="ssh", help="SSH Host to connect to."
+                "--ssh",
+                "-s",
+                dest="ssh",
+                help="SSH Host to connect to, as found in openSSH config file.",
             ),
             add_sub_parsers,
         )
