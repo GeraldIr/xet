@@ -10,7 +10,7 @@ from fabric import Connection
 
 
 CONFIG_FILE = "bump.cfg"
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 NL = "\n"
 
@@ -497,7 +497,7 @@ def add_entry(args):
         "filepath": args.filepath,
         "flags": args.flags,
         "wrapper": args.wrapper,
-        "presets": {k: v for k, v in args.presets},
+        "presets": {k: v for k, v in args.presets} if args.presets else None,
         "ssh": args.ssh,
     }
 
