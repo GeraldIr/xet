@@ -5,19 +5,25 @@ import json
 import os
 import re
 import subprocess
+import sys
 from typing import Union
 from fabric import Connection
 
 
-CONFIG_FILE = "bump.cfg"
+CONFIG_FILE = ".bump"
 VERSION = "0.4.0"
 
 NL = "\n"
 
 
 def get_config_path(g=False):
+    """Return the config file path, supporting XDG_CONFIG_HOME for global config."""
     if g:
-        return os.path.join(os.path.expanduser("~"), ".bump")
+        xdg_config = os.environ.get("XDG_CONFIG_HOME")
+        if xdg_config:
+            return os.path.join(xdg_config, CONFIG_FILE)
+        else:
+            return os.path.join(os.path.expanduser("~"), CONFIG_FILE)
     else:
         return CONFIG_FILE
 
@@ -38,7 +44,12 @@ def parse_config(except_flags=None, only_flags=None, names=None, preset=None, g=
     except_flags = set(except_flags) if except_flags else set()
     only_flags = set(only_flags) if only_flags else set()
 
-    with open(get_config_path(g=g), mode="r") as f:
+    config_path = get_config_path(g=g)
+
+    if not os.path.exists(config_path):
+        print(f"Error: Config file '{config_path}' not found. Run 'bump init' first.")
+        sys.exit(1)
+    with open(config_path, mode="r") as f:
         config: dict = json.load(f)
 
     if preset:
@@ -59,9 +70,9 @@ def parse_config(except_flags=None, only_flags=None, names=None, preset=None, g=
     for key, entry in config.items():
         flags = entry["flags"] if (entry and "flags" in entry) else None
         if flags:
-            if except_flags and any([flag in except_flags for flag in flags]):
+            if except_flags and not any([flag in except_flags for flag in flags]):
                 continue
-            if only_flags and not any([flag in only_flags for flag in flags]):
+            if only_flags and any([flag in only_flags for flag in flags]):
                 continue
         elif only_flags:
             continue

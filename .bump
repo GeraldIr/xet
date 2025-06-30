@@ -1,0 +1,26 @@
+{
+    "pyversion": {
+        "type": "tag",
+        "filepath": "bump/bump",
+        "flags": "ver",
+        "wrapper": "\"",
+        "presets": null,
+        "ssh": null,
+        "tag": "VERSION = ",
+        "occurences": ":",
+        "end": "",
+        "padding": 0
+    },
+    "ppversion": {
+        "type": "tag",
+        "filepath": "pyproject.toml",
+        "flags": "ver",
+        "wrapper": "\"",
+        "presets": null,
+        "ssh": null,
+        "tag": "version = ",
+        "occurences": ":",
+        "end": "",
+        "padding": 0
+    }
+}
