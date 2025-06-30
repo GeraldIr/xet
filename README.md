@@ -79,7 +79,7 @@ bump add regex <name> <filepath> <regex> [options]
 - `<regex>`: Regular expression to match values.
 - Options:
    - `-f, --flags <flags>`: Optional flags for filtering.
-   - `-g, --group <int>`: Capture group number to update.
+   - `-c, --capture-group <int>`: Capture group number to update.
    - `-o, --occurences <index or slice>`: Specify which occurrences to modify (string formatted like a list index in python, can be slices).
    - `-w, --wrapper <char>`: Wrap the value with a character (e.g., quotes), also gets stripped in get mode.
    - `-p, --preset <str> <str>`: Name and value of preset, option can be repeated to add multiple presets.

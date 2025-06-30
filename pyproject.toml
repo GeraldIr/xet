@@ -1,8 +1,7 @@
 [tool.poetry]
 name = "bump"
-version = "0.3.1"
+version = "0.4.0"
 description = "CLI Tool for quickly updating (bumping) values across your project."
-authors = ["Gerald Walter Irsiegler"]
 readme = "README.md"
 
 [tool.poetry.dependencies]

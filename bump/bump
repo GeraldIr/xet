@@ -5,34 +5,51 @@ import json
 import os
 import re
 import subprocess
+import sys
 from typing import Union
 from fabric import Connection
 
 
-CONFIG_FILE = "bump.cfg"
-VERSION = "0.3.1"
+CONFIG_FILE = ".bump"
+VERSION = "0.4.0"
 
 NL = "\n"
 
 
+def get_config_path(g=False):
+    """Return the config file path, supporting XDG_CONFIG_HOME for global config."""
+    if g:
+        xdg_config = os.environ.get("XDG_CONFIG_HOME")
+        if xdg_config:
+            return os.path.join(xdg_config, CONFIG_FILE)
+        else:
+            return os.path.join(os.path.expanduser("~"), CONFIG_FILE)
+    else:
+        return CONFIG_FILE
+
+
 def init_config(args):
     """Initialize a bump.cfg file."""
-    if os.path.exists(CONFIG_FILE):
+
+    if os.path.exists(get_config_path(args.g)):
         print("Configuration already exists.")
         return
-    with open(CONFIG_FILE, "w") as f:
+    with open(get_config_path(args.g), "w") as f:
         json.dump({}, f)
-    if args.v:
-        ...
 
 
-def parse_config(except_flags=None, only_flags=None, names=None, preset=None):
+def parse_config(except_flags=None, only_flags=None, names=None, preset=None, g=False):
     """Parse bump.cfg, handling entries and applying -e/-o/-n filters."""
 
     except_flags = set(except_flags) if except_flags else set()
     only_flags = set(only_flags) if only_flags else set()
 
-    with open(CONFIG_FILE, mode="r") as f:
+    config_path = get_config_path(g=g)
+
+    if not os.path.exists(config_path):
+        print(f"Error: Config file '{config_path}' not found. Run 'bump init' first.")
+        sys.exit(1)
+    with open(config_path, mode="r") as f:
         config: dict = json.load(f)
 
     if preset:
@@ -53,9 +70,9 @@ def parse_config(except_flags=None, only_flags=None, names=None, preset=None):
     for key, entry in config.items():
         flags = entry["flags"] if (entry and "flags" in entry) else None
         if flags:
-            if except_flags and any([flag in except_flags for flag in flags]):
+            if except_flags and not any([flag in except_flags for flag in flags]):
                 continue
-            if only_flags and not any([flag in only_flags for flag in flags]):
+            if only_flags and any([flag in only_flags for flag in flags]):
                 continue
         elif only_flags:
             continue
@@ -407,7 +424,7 @@ def _set_value(entry, value):
 
 
 def set_presets(args):
-    config = parse_config(preset=args.preset)
+    config = parse_config(preset=args.preset, g=args.g)
 
     for entry in config.values():
         _set_value(entry=entry, value=entry["presets"][args.preset])
@@ -415,14 +432,18 @@ def set_presets(args):
 
 def set_value(args):
     """Set the value associated with a tag in files listed in bump.cfg."""
-    config = parse_config(args.e, args.o, args.n)
+    config = parse_config(
+        except_flags=args.e, only_flags=args.o, names=args.n, g=args.g
+    )
     for entry in config.values():
         _set_value(entry=entry, value=args.value)
 
 
 def get_value(args):
     """Get the value associated with a tag in files listed in bump.cfg."""
-    config = parse_config(args.e, args.o, args.n)
+    config = parse_config(
+        except_flags=args.e, only_flags=args.o, names=args.n, g=args.g
+    )
     for name, entry in config.items():
         type, filepath, wrapper, ssh, verbosity = (
             entry["type"],
@@ -490,7 +511,7 @@ def get_value(args):
 def add_entry(args):
     """Add a new entry to bump.cfg."""
 
-    config = parse_config()
+    config = parse_config(g=args.g)
 
     config[args.name] = {
         "type": args.subcommand,
@@ -522,23 +543,23 @@ def add_entry(args):
             "occurences": args.occurences if args.occurences else ":",
         }
 
-    with open(CONFIG_FILE, mode="w") as f:
+    with open(get_config_path(g=args.g), mode="w") as f:
         json.dump(config, f, indent=4)
 
 
 def remove_entry(args):
     """Remove an entry from bump.cfg based on the tag."""
-    config = parse_config()
+    config = parse_config(g=args.g)
 
     config.pop(args.name)
 
-    with open(CONFIG_FILE, mode="w") as f:
+    with open(get_config_path(g=args.g), mode="w") as f:
         json.dump(config, f, indent=4)
 
 
 def edit_config(args):
     editor = os.environ.get("EDITOR", "nano")
-    subprocess.run([editor, "bump.cfg"])
+    subprocess.run([editor, get_config_path(args.g)])
 
 
 def main():
@@ -552,18 +573,42 @@ def main():
 
     parser.add_argument("--version", action="version", version=f"bump {VERSION}")
 
-    subparsers.add_parser("init", help="Initialize bump.cfg").set_defaults(
-        func=init_config
+    init_parser = subparsers.add_parser("init", help="Initialize bump.cfg")
+
+    init_parser.set_defaults(func=init_config)
+
+    init_parser.add_argument(
+        "--global",
+        "-g",
+        dest="g",
+        action="store_true",
+        help="Use the global config.",
     )
 
-    subparsers.add_parser(
+    edit_parser = subparsers.add_parser(
         "edit", help="Opens the bump.cfg in the standard editor."
-    ).set_defaults(func=edit_config)
+    )
+    edit_parser.set_defaults(func=edit_config)
+
+    edit_parser.add_argument(
+        "--global",
+        "-g",
+        dest="g",
+        action="store_true",
+        help="Edit global config.",
+    )
 
     get_parser = subparsers.add_parser(
-        "get", help="Get a value from files listed in bump.cfg"
+        "get", help="Get a value from files listed in the bump config."
     )
     get_parser.set_defaults(func=get_value)
+    get_parser.add_argument(
+        "--global",
+        "-g",
+        dest="g",
+        action="store_true",
+        help="Use the global config.",
+    )
     get_parser.add_argument(
         "--except", "-e", dest="e", nargs="+", help="Exclude entries with these flags"
     )
@@ -596,6 +641,14 @@ def main():
     )
     set_parser.set_defaults(func=set_value)
     set_parser.add_argument("value", help="Value to set")
+
+    set_parser.add_argument(
+        "--global",
+        "-g",
+        dest="g",
+        action="store_true",
+        help="Use the global config.",
+    )
     set_parser.add_argument(
         "--except", "-e", dest="e", nargs="*", help="Exclude entries with these flags"
     )
@@ -684,6 +737,19 @@ def main():
     )
 
     # non-unique optional arguments
+
+    list(  # Add global argument to all add sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--global",
+                "-g",
+                action="store_true",
+                dest="g",
+                help="Add to the global bump config.",
+            ),
+            add_sub_parsers,
+        )
+    )
 
     list(  # Add Padding argument to tag and lc add sub parsers
         map(
@@ -789,8 +855,8 @@ def main():
 
     # regex parser
     add_regex_parser.add_argument(
-        "--group",
-        "-g",
+        "--capture-group",
+        "-c",
         nargs=1,
         help="The group number which should be interpreted as the value. 0 means the entire match is interpreted as the value. Everything but the value itself is preserved, useful when values aren't at the end of a line",
     )
@@ -804,6 +870,14 @@ def main():
     )
     remove_parser.set_defaults(func=remove_entry)
     remove_parser.add_argument("name", help="Name of the entry to remove")
+
+    remove_parser.add_argument(
+        "--global",
+        "-g",
+        dest="g",
+        action="store_true",
+        help="Use the global config.",
+    )
 
     remove_parser.add_argument(
         "-v",
@@ -822,6 +896,14 @@ def main():
     )
     preset_parser.set_defaults(func=set_presets)
     preset_parser.add_argument("preset", help="Name of the preset")
+
+    preset_parser.add_argument(
+        "--global",
+        "-g",
+        dest="g",
+        action="store_true",
+        help="Use the global config.",
+    )
 
     args = parser.parse_args()
     args.func(args)
