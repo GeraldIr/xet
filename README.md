@@ -2,7 +2,7 @@
 
 ## Overview
 
-Bump is a command-line tool for managing and modifying values in multiple files using a configuration file (`bump.cfg`). It supports various methods of identifying and modifying values, including tags, line/column positions, and regular expressions.
+Bump is a command-line tool for managing and modifying values in multiple files using a configuration file (`.bump`). It supports various methods of identifying and modifying values, including tags, line/column positions, and regular expressions.
 
 ## Installation
 
@@ -10,7 +10,7 @@ Ensure you have Python 3 installed. Place the script in a directory included in 
 
 ```sh
 chmod +x bumpy/bump 
-cp bumpy/bump /usr/local/bin/bump
+cp bump/bump /usr/local/bin/bump
 ```
 You can also just run the ```install.sh``` script which should do the same in most cases.
 
@@ -22,16 +22,20 @@ You can also just run the ```install.sh``` script which should do the same in mo
 ```sh
 bump init
 ```
+- Options:
+   - `-g, --global`: Global Mode. Creates a `.bump` file in the XDG_CONFIG_HOME folder instead of locally. 
 
-Creates an empty `bump.cfg` if it does not already exist.
+Creates an empty `.bump` if it does not already exist.
 
-Any bump command will use the bump.cfg file in the immediate directory, the future promises much more.
+Any bump command will use the `.bump` file in the immediate directory, unless the  `-g, --global` flag is set, then the global  `.bump` file will be used instead.
 
 ```sh
 bump edit
 ```
+- Options:
+   - `-g, --global`: Edit the global `.bump` instead of the local one.
 
-Opens the `bump.cfg` in your standard editor or nano.
+Opens `.bump` in your standard editor or nano.
 
 
 ### Add Entries to Configuration
@@ -52,7 +56,8 @@ bump add tag <name> <filepath> <tag> [options]
    - `-e, --end <str>`: Will get appended in the line after value and wrappers, also gets stripped in get mode.
    - `-d, --padding <int>`: Number of whitespace-padding which gets added after tag and before end. 
    - `-p, --preset <str> <str>`: Name and value of preset, option can be repeated to add multiple presets. 
-   - `-s, --ssh <str>`: Hostname of ssh-host the file is found at, as found in openSSH config file. 
+   - `-s, --ssh <str>`: Hostname of ssh-host the file is found at, as found in openSSH config file.
+   - `-g, --global`: Add the entry to the global `.bump`.
 
 
 #### Add a Line/Column-Based Entry
@@ -68,7 +73,8 @@ bump add lc <name> <filepath> <line> <column> [options]
    - `-e, --end <str>`: Will get appended in the line after value and wrappers, also gets stripped in get mode.
    - `-d, --padding <int>`: Amount of whitespace-padding which gets added after tag and before end.
    - `-p, --preset <str> <str>`: Name and value of preset, option can be repeated to add multiple presets.
-   - `-s, --ssh <str>`: Hostname of ssh-host the file is found at, as found in openSSH config file. 
+   - `-s, --ssh <str>`: Hostname of ssh-host the file is found at, as found in openSSH config file.
+   - `-g, --global`: Add the entry to the global `.bump`.
 
 #### Add a Regex-Based Entry
 
@@ -83,7 +89,8 @@ bump add regex <name> <filepath> <regex> [options]
    - `-o, --occurences <index or slice>`: Specify which occurrences to modify (string formatted like a list index in python, can be slices).
    - `-w, --wrapper <char>`: Wrap the value with a character (e.g., quotes), also gets stripped in get mode.
    - `-p, --preset <str> <str>`: Name and value of preset, option can be repeated to add multiple presets.
-   - `-s, --ssh <str>`: Hostname of ssh-host the file is found at, as found in openSSH config file. 
+   - `-s, --ssh <str>`: Hostname of ssh-host the file is found at, as found in openSSH config file.
+   - `-g, --global`: Add the entry to the global `.bump`.
 
 ### Get Values from Configured Files
 
@@ -94,7 +101,8 @@ bump get [-e <flags>] [-o <flags>] [-n <names>]
 Options:
    - `-e, --except <flags>`: Exclude entries with specified flags.
    - `-o, --only <flags>`: Include only entries with specified flags.
-   - `-n, --names <names>`: Include only entries with specified names. 
+   - `-n, --names <names>`: Include only entries with specified names.
+   - `-g, --global`: Use the global `.bump`.
 
 ### Set Values in Configured Files
 
@@ -106,7 +114,8 @@ bump set <value> [-e <flags>] [-o <flags>] [-n <names>]
 Options:
    - `-e, --except <flags>`: Exclude entries with specified flags.
    - `-o, --only <flags>`: Include only entries with specified flags.
-   - `-n, --names <names>`: Include only entries with specified names. 
+   - `-n, --names <names>`: Include only entries with specified names.
+   - `-g, --global`: Use the global `.bump`.
 
 ### Set Values to Preset
 
@@ -115,14 +124,19 @@ bump preset <preset>
 ```
 
 - `<preset>`: Name of the preset to be set.
+- Options:
+   - `-g, --global`: Use the global `.bump`.
 
 ### Remove an Entry
 
 ```sh
 bump remove <name>
 ```
+- `<name>`: Name of the entry to be removed.
+- Options:
+   - `-g, --global`: Remove the specified entry from the global `.bump`.
 
-Removes the specified entry from `bump.cfg`.
+Removes the specified entry from `.bump` file.
 
 ## Example Usage
 
