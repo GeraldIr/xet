@@ -1,8 +1,9 @@
 [tool.poetry]
-name = "bump"
+name = "xet"
 version = "0.4.0"
-description = "CLI Tool for quickly updating (bumping) values across your project."
+description = "CLI Tool for quickly updating values across your project/machine."
 readme = "README.md"
+authors = ["Art Irsiegler"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
