@@ -6,13 +6,14 @@ xet is a command-line tool for managing and modifying values in multiple files u
 
 ## Installation
 
-Ensure you have Python 3 installed. Place the script in a directory included in your system's `PATH` and make it executable:
 
 ```sh
-chmod +x xet/xet 
-cp xet/xet /usr/local/bin/xet
+pip install xet
 ```
-You can also just run the ```install.sh``` script which should do the same in most cases.
+or
+```sh
+pipx install xet
+```
 
 
 ## Commands

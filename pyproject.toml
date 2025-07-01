@@ -1,13 +1,13 @@
 [project]
 name = "xet"
-version = "0.5.0"
+version = "1.0.0"
 
 [tool.poetry]
 name = "xet"
-version = "0.5.0"
+version = "1.0.0"
 description = "CLI Tool for quickly updating values across your project/machine."
 readme = "README.md"
-authors = ["Art Irsiegler"]
+authors = ["Art"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
