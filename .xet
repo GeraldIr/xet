@@ -1,7 +1,7 @@
 {
     "pyversion": {
         "type": "tag",
-        "filepath": "xet/xet",
+        "filepath": "xet/xet.py",
         "flags": "ver",
         "wrapper": "\"",
         "presets": null,
