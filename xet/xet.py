@@ -11,7 +11,7 @@ from fabric import Connection
 
 
 CONFIG_FILE = ".xet"
-VERSION = "0.4.0"
+VERSION = "1.0.0"
 
 NL = "\n"
 
