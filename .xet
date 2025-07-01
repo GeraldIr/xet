@@ -1,7 +1,7 @@
 {
     "pyversion": {
         "type": "tag",
-        "filepath": "bump/bump",
+        "filepath": "xet/xet",
         "flags": "ver",
         "wrapper": "\"",
         "presets": null,
