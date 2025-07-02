@@ -1,23 +1,28 @@
-#!/usr/bin/python3
-
 import argparse
 import json
 import os
 import re
 import subprocess
 import sys
+from colorama import Fore, Style
 from typing import Union
 from fabric import Connection
 
 
 CONFIG_FILE = ".xet"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 NL = "\n"
 
+VALUE_COLOR = Fore.RED
+NAME_COLOR = Fore.GREEN
+IDENTIFIER_COLOR = Fore.BLUE
+PATH_COLOR = Fore.MAGENTA
+SEP_COLOR = Fore.CYAN
+
 
 def get_config_path(g=False):
-    """Return the config file path, supporting XDG_CONFIG_HOME for global config."""
+    """Return the config file path, supporting XDG_CONFIG_HOME for global config"""
     if g:
         xdg_config = os.environ.get("XDG_CONFIG_HOME")
         if xdg_config:
@@ -29,17 +34,17 @@ def get_config_path(g=False):
 
 
 def init_config(args):
-    """Initialize a .xet file."""
+    """Initialize a .xet file"""
 
     if os.path.exists(get_config_path(args.g)):
-        print("Configuration already exists.")
+        print("Configuration already exists")
         return
     with open(get_config_path(args.g), "w") as f:
         json.dump({}, f)
 
 
 def parse_config(except_flags=None, only_flags=None, names=None, preset=None, g=False):
-    """Parse .xet, handling entries and applying -e/-o/-n filters."""
+    """Parse .xet, handling entries and applying -e/-o/-n filters"""
 
     except_flags = set(except_flags) if except_flags else set()
     only_flags = set(only_flags) if only_flags else set()
@@ -47,7 +52,7 @@ def parse_config(except_flags=None, only_flags=None, names=None, preset=None, g=
     config_path = get_config_path(g=g)
 
     if not os.path.exists(config_path):
-        print(f"Error: Config file '{config_path}' not found. Run 'xet init' first.")
+        print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
         sys.exit(1)
     with open(config_path, mode="r") as f:
         config: dict = json.load(f)
@@ -94,11 +99,23 @@ def _parse_index_or_slice(s):
 
 
 def _sanitize_value(
-    value: str = "", wrapper: str = None, end: str = None, padding: int = 0
+    value: str = "",
+    wrapper: str = None,
+    end: str = None,
 ):
     value = value if not end else value.rstrip(end)
-    value = value if not padding else value[padding:-padding]
     return value if not wrapper else value.lstrip(wrapper).split(wrapper)[0]
+
+
+def _color_value(
+    line: str = "",
+    value: str = "",
+):
+    return (VALUE_COLOR + value + Style.RESET_ALL).join(line.split(value))
+
+
+def _color_tag(line: str = "", tag: str = ""):
+    return IDENTIFIER_COLOR + tag + Style.RESET_ALL + line.lstrip(tag)
 
 
 def _filter_occurences(occurences: list, filter: str = ":"):
@@ -146,7 +163,6 @@ def _set_tag_value(
     occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = None,
     end: str = "",
-    padding: int = 0,
     value: str = "",
     ssh: str = None,
 ):
@@ -167,7 +183,7 @@ def _set_tag_value(
             after_wrapper = lines[occurence_index].lstrip(tag).split(wrapper)[2]
             end = after_wrapper + end
         lines[occurence_index] = (
-            f"{tag}{' ' * padding}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{' ' * padding}{end}"
+            f"{tag}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{end}"
         )
 
     _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
@@ -179,18 +195,9 @@ def _get_tag_value(
     occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = None,
     end: str = "",
-    padding: int = 0,
     verbosity: int = 0,
     ssh: str = None,
 ):
-    if verbosity >= 2:
-        print(
-            f"Path: {filepath}\n"
-            f"Tag: {tag}\n"
-            f"Occurences: {occurences_slice if occurences_slice != ':' else 'All'}\n"
-            f"{'Wrapper: ' + wrapper + NL if wrapper else ''}"
-            f"{'End: ' + end + NL if end else ''}"
-        )
 
     found_occurences = []
 
@@ -205,17 +212,23 @@ def _get_tag_value(
     )
 
     for occurence_index in filtered_occurences:
-        if verbosity >= 1:
-            print(f"Line:\n{lines[occurence_index]}\nValue: ")
-
-        print(
-            _sanitize_value(
-                value=lines[occurence_index].lstrip(tag),
-                wrapper=wrapper,
-                end=end,
-                padding=padding,
-            )
+        sanitized_value = _sanitize_value(
+            value=lines[occurence_index].lstrip(tag),
+            wrapper=wrapper,
+            end=end,
         )
+        if verbosity >= 1:
+            print(
+                _color_tag(
+                    line=_color_value(
+                        line=lines[occurence_index],
+                        value=sanitized_value,
+                    ),
+                    tag=tag,
+                )
+            )
+        else:
+            print(sanitized_value)
 
 
 def _set_lc_value(
@@ -224,7 +237,6 @@ def _set_lc_value(
     column: int = 0,
     wrapper: str = "",
     end: str = "",
-    padding: int = 0,
     value: str = "",
     ssh: str = None,
 ):
@@ -245,7 +257,7 @@ def _set_lc_value(
         end = after_wrapper + end
 
     lines[line] = (
-        f"{lines[line][:column]}{' ' * padding}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{' ' * padding}{end}"
+        f"{lines[line][:column]}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{end}"
     )
 
     _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
@@ -257,7 +269,6 @@ def _get_lc_value(
     column: int = 0,
     wrapper: str = "",
     end: str = "",
-    padding: int = 0,
     verbosity: int = 0,
     ssh: str = None,
 ):
@@ -265,24 +276,23 @@ def _get_lc_value(
     line -= 1
     column -= 1
 
-    if verbosity >= 2:
-        print(
-            f"File: {filepath}\n"
-            f"Regex: {line} \n"
-            f"Column: {column}\n"
-            f"{'Wrapper:' + wrapper + NL if wrapper else ''}"
-            f"{'End: ' + end + NL if end else ''}"
-        )
-
     lines = _get_file_lines(filepath=filepath, ssh=ssh)
 
-    if verbosity >= 1:
-        print(f"Line:\n{lines[line]}\nValue:")
-    print(
-        _sanitize_value(
-            value=lines[line][column:], wrapper=wrapper, end=end, padding=padding
-        )
+    sanitized_value = _sanitize_value(
+        value=lines[line][column:],
+        wrapper=wrapper,
+        end=end,
     )
+
+    if verbosity >= 1:
+        print(
+            _color_value(
+                line=lines[line],
+                value=sanitized_value,
+            )
+        )
+    else:
+        print(sanitized_value)
 
 
 def _set_regex_value(
@@ -331,15 +341,6 @@ def _get_regex_value(
     verbosity: int = 0,
     ssh: str = None,
 ):
-    if verbosity >= 2:
-        print(
-            f"File: {filepath}\n"
-            f"Regex: {regex} \n"
-            f"Group: {group if group else 'None'}\n"
-            f"Occurences: {occurences_slice if occurences_slice != ':' else 'All'}\n"
-            f"{'Wrapper: ' + wrapper + NL if wrapper else ''}"
-        )
-
     lines = _get_file_lines(filepath=filepath, ssh=ssh)
 
     found_occurences = []
@@ -354,16 +355,24 @@ def _get_regex_value(
     )
 
     for occurence_index, occurence_match in filtered_occurences:
+
+        sanitized_value = (
+            _sanitize_value(
+                value=occurence_match.group(group), wrapper=wrapper, end=None
+            )
+            if group
+            else occurence_match.string
+        )
+
         if verbosity >= 1:
-            print(f"Line:\n{lines[occurence_index]}\nValue:")
-        if not group:
-            print(occurence_match.string)
-        else:
             print(
-                _sanitize_value(
-                    value=occurence_match.group(group), wrapper=wrapper, end=None
+                _color_value(
+                    line=lines[occurence_index],
+                    value=sanitized_value,
                 )
             )
+        else:
+            print(sanitized_value)
 
 
 def _set_value(entry, value):
@@ -382,14 +391,12 @@ def _set_value(entry, value):
         tag = entry["tag"]
         occurences = entry["occurences"]
         end = entry["end"]
-        padding = entry["padding"]
         _set_tag_value(
             filepath=filepath,
             tag=tag,
             occurences_slice=occurences,
             wrapper=wrapper,
             end=end,
-            padding=padding,
             value=value,
             ssh=ssh,
         )
@@ -397,14 +404,12 @@ def _set_value(entry, value):
         line = entry["line"]
         column = entry["column"]
         end = entry["end"]
-        padding = entry["padding"]
         _set_lc_value(
             filepath=filepath,
             line=line,
             column=column,
             wrapper=wrapper,
             end=end,
-            padding=padding,
             value=value,
             ssh=ssh,
         )
@@ -431,7 +436,7 @@ def set_presets(args):
 
 
 def set_value(args):
-    """Set the value associated with a tag in files listed in .xet."""
+    """Set the value associated with a tag in files listed in .xet"""
     config = parse_config(
         except_flags=args.e, only_flags=args.o, names=args.n, g=args.g
     )
@@ -440,7 +445,7 @@ def set_value(args):
 
 
 def get_value(args):
-    """Get the value associated with a tag in files listed in .xet."""
+    """Get the value associated with a tag in files listed in .xet"""
     config = parse_config(
         except_flags=args.e, only_flags=args.o, names=args.n, g=args.g
     )
@@ -452,40 +457,43 @@ def get_value(args):
             entry["ssh"],
             args.verbosity,
         )
-        if verbosity >= 2:
-            print(name)
-            print("----------------------------")
         if not os.path.exists(filepath):
             print(f"File not found: {filepath}")
             continue
 
+        if verbosity >= 2:
+            print(
+                f"{NAME_COLOR + name}{SEP_COLOR + ':'}{PATH_COLOR + filepath}{SEP_COLOR + ':'}",
+                end="",
+            )
         if type == "tag":
             tag = entry["tag"]
             occurences = entry["occurences"]
             end = entry["end"]
-            padding = entry["padding"]
+            if verbosity >= 2:
+                print(f"{IDENTIFIER_COLOR + tag}{SEP_COLOR + ':' + Style.RESET_ALL}")
             _get_tag_value(
                 filepath=filepath,
                 tag=tag,
                 occurences_slice=occurences,
                 wrapper=wrapper,
                 end=end,
-                padding=padding,
                 verbosity=verbosity,
-                ssh=ssh,
             )
         elif type == "lc":
             line = entry["line"]
             column = entry["column"]
             end = entry["end"]
-            padding = entry["padding"]
+            if verbosity >= 2:
+                print(
+                    f"{IDENTIFIER_COLOR + line}{SEP_COLOR + ':'}{IDENTIFIER_COLOR + column}{SEP_COLOR + ':' + Style.RESET_ALL}"
+                )
             _get_lc_value(
                 filepath=filepath,
                 line=line,
                 column=column,
                 wrapper=wrapper,
                 end=end,
-                padding=padding,
                 verbosity=verbosity,
                 ssh=ssh,
             )
@@ -493,6 +501,8 @@ def get_value(args):
             regex = entry["regex"]
             group = entry["group"]
             occurences = entry["occurences"]
+            if verbosity >= 2:
+                print(f"{IDENTIFIER_COLOR + regex}{SEP_COLOR + ':' + Style.RESET_ALL}")
             _get_regex_value(
                 filepath=filepath,
                 regex=regex,
@@ -502,14 +512,10 @@ def get_value(args):
                 verbosity=verbosity,
                 ssh=ssh,
             )
-        if verbosity >= 2:
-            print("----------------------------")
-        if verbosity >= 1:
-            print()
 
 
 def add_entry(args):
-    """Add a new entry to .xet."""
+    """Add a new entry to .xet"""
 
     config = parse_config(g=args.g)
 
@@ -527,14 +533,12 @@ def add_entry(args):
             "tag": args.tag,
             "occurences": args.occurences if args.occurences else ":",
             "end": args.end,
-            "padding": int(args.padding),
         }
     elif args.subcommand == "lc":
         config[args.name] |= {
             "line": int(args.line),
             "column": int(args.column),
             "end": args.end,
-            "padding": int(args.padding),
         }
     elif args.subcommand == "regex":
         config[args.name] |= {
@@ -548,7 +552,7 @@ def add_entry(args):
 
 
 def remove_entry(args):
-    """Remove an entry from .xet based on the tag."""
+    """Remove an entry from .xet based on the tag"""
     config = parse_config(g=args.g)
 
     config.pop(args.name)
@@ -564,7 +568,7 @@ def edit_config(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="xet", description="A CLI tool to manage values across multiple files."
+        prog="xet", description="A CLI tool to manage values across multiple files"
     )
 
     subparsers = parser.add_subparsers(
@@ -582,11 +586,11 @@ def main():
         "-g",
         dest="g",
         action="store_true",
-        help="Use the global config.",
+        help="Use the global config",
     )
 
     edit_parser = subparsers.add_parser(
-        "edit", help="Opens the .xet in the standard editor."
+        "edit", help="Opens the .xet in the standard editor"
     )
     edit_parser.set_defaults(func=edit_config)
 
@@ -595,11 +599,12 @@ def main():
         "-g",
         dest="g",
         action="store_true",
-        help="Edit global config.",
+        help="Edit global config",
     )
 
     get_parser = subparsers.add_parser(
-        "get", help="Get a value from files listed in the xet config."
+        "get",
+        help=f"Get {VALUE_COLOR + 'values' + Style.RESET_ALL} from entries listed in the .xet",
     )
     get_parser.set_defaults(func=get_value)
     get_parser.add_argument(
@@ -607,7 +612,7 @@ def main():
         "-g",
         dest="g",
         action="store_true",
-        help="Use the global config.",
+        help="Use the global config",
     )
     get_parser.add_argument(
         "--except", "-e", dest="e", nargs="+", help="Exclude entries with these flags"
@@ -624,30 +629,33 @@ def main():
         "-n",
         dest="n",
         nargs="*",
-        help="Include only entries with the given names.",
+        help=f"Include only entries with the given {NAME_COLOR + 'names' + Style.RESET_ALL}",
     )
 
     get_parser.add_argument(
         "-v",
         "--verbose",
         dest="verbosity",
-        help="Enable verbose output",
+        help=f"Enable verbose output. -v outputs the entire line, -vv also outputs the entry {NAME_COLOR + 'name'} {PATH_COLOR + 'filepath' + Style.RESET_ALL} and {IDENTIFIER_COLOR + 'identifier/s' + Style.RESET_ALL}",
         action="count",
         default=0,
     )
 
     set_parser = subparsers.add_parser(
-        "set", help="Set a value in files listed in the xet config."
+        "set",
+        help=f"Set a {VALUE_COLOR + 'value' + Style.RESET_ALL} in files listed in the .xet",
     )
     set_parser.set_defaults(func=set_value)
-    set_parser.add_argument("value", help="Value to set")
+    set_parser.add_argument(
+        "value", help=f"{VALUE_COLOR + 'Value' + Style.RESET_ALL} to set"
+    )
 
     set_parser.add_argument(
         "--global",
         "-g",
         dest="g",
         action="store_true",
-        help="Use the global config.",
+        help="Use the global config",
     )
     set_parser.add_argument(
         "--except", "-e", dest="e", nargs="*", help="Exclude entries with these flags"
@@ -664,7 +672,7 @@ def main():
         "-n",
         dest="n",
         nargs="*",
-        help="Include only entries with the given names.",
+        help=f"Include only entries with the given {NAME_COLOR + 'names' + Style.RESET_ALL}",
     )
 
     set_parser.add_argument(
@@ -680,21 +688,23 @@ def main():
     ADD PARSER AND SUB-PARSERS
     """
 
-    add_parser = subparsers.add_parser("add", help="Add a new entry to xet config")
+    add_parser = subparsers.add_parser("add", help="Add a new entry the .xet")
 
     add_sub_parser = add_parser.add_subparsers(dest="subcommand")
 
     add_tag_parser = add_sub_parser.add_parser(
-        "tag", help="Add a tag-type entry to the xet config."
+        "tag",
+        help=f"Add a {IDENTIFIER_COLOR + 'tag' + Style.RESET_ALL} identifier entry to the .xet",
     )
 
     add_lc_parser = add_sub_parser.add_parser(
-        "lc", help="Add a line/column-type entry to the xet config."
+        "lc",
+        help=f"Add a {IDENTIFIER_COLOR + 'line/column' + Style.RESET_ALL} identifier entry to the .xet",
     )
 
     add_regex_parser = add_sub_parser.add_parser(
         "regex",
-        help="Match tags with regex instead of plaintext, also supports group matching the values place.",
+        help=f"Add a {IDENTIFIER_COLOR + 'regex' + Style.RESET_ALL} identifier entry to the .xet",
     )
 
     add_sub_parsers = [add_tag_parser, add_lc_parser, add_regex_parser]
@@ -706,7 +716,8 @@ def main():
     list(
         map(  # Add name argument to all add sub parsers
             lambda sub: sub.add_argument(
-                "name", help="The name of the entry in the config."
+                "name",
+                help=f"The {NAME_COLOR + 'name' + Style.RESET_ALL} of the entry in the config",
             ),
             add_sub_parsers,
         )
@@ -714,7 +725,9 @@ def main():
 
     list(
         map(  # Add Filepath argument to all add sub parsers
-            lambda sub: sub.add_argument("filepath", help="Path to the file"),
+            lambda sub: sub.add_argument(
+                "filepath", help=f"{PATH_COLOR + 'Path' + Style.RESET_ALL} of the file"
+            ),
             add_sub_parsers,
         )
     )
@@ -722,18 +735,25 @@ def main():
     # unique positional arguments
 
     # tag parser
-    add_tag_parser.add_argument("tag", help="Tag identifying the line in the file.")
+    add_tag_parser.add_argument(
+        "tag",
+        help=f"{IDENTIFIER_COLOR + 'Tag' + Style.RESET_ALL} identifying the line in the file",
+    )
 
     # lc parser
-    add_lc_parser.add_argument("line", help="The line at which the value is located")
     add_lc_parser.add_argument(
-        "column", help="The column after which the value is located"
+        "line",
+        help=f"The {IDENTIFIER_COLOR + 'line' + Style.RESET_ALL} at which the value is located",
+    )
+    add_lc_parser.add_argument(
+        "column",
+        help=f"The {IDENTIFIER_COLOR + 'column' + Style.RESET_ALL} at which the value is located",
     )
 
     # regex parser
     add_regex_parser.add_argument(
         "regex",
-        help="The regular expression, if no group is specified values are updated after any given match (like tags).",
+        help=f"The {IDENTIFIER_COLOR + 'regular expression' + Style.RESET_ALL}, if no group is specified values are updated after any given match (like tags)",
     )
 
     # non-unique optional arguments
@@ -745,22 +765,9 @@ def main():
                 "-g",
                 action="store_true",
                 dest="g",
-                help="Add to the global xet config.",
+                help="Add to the global .xet",
             ),
             add_sub_parsers,
-        )
-    )
-
-    list(  # Add Padding argument to tag and lc add sub parsers
-        map(
-            lambda sub: sub.add_argument(
-                "--padding",
-                "-d",
-                dest="padding",
-                default=0,
-                help="Amount of whitespace-padding which gets added after tag and before end.",
-            ),
-            [add_tag_parser, add_lc_parser],
         )
     )
 
@@ -771,7 +778,7 @@ def main():
                 "--end",
                 dest="end",
                 default="",
-                help="Will be put after the value and its wrappers, will also be stripped in get mode if present.",
+                help=f"Will be written at the very end of the line",
             ),
             [add_tag_parser, add_lc_parser],
         )
@@ -784,7 +791,7 @@ def main():
                 "-o",
                 nargs="*",
                 dest="occurences",
-                help="Which occurence of the tag should be included, can be an integer, list of integers or the string 'all'",
+                help=f"Which occurence of the {IDENTIFIER_COLOR + 'tag/match' + Style.RESET_ALL} should be included, can be an integer, list of integers or the string 'all'",
             ),
             [add_tag_parser, add_regex_parser],
         )
@@ -805,7 +812,7 @@ def main():
                 "--ssh",
                 "-s",
                 dest="ssh",
-                help="SSH Host to connect to, as found in openSSH config file.",
+                help="SSH Host to connect to, as found in openSSH config file",
             ),
             add_sub_parsers,
         )
@@ -831,7 +838,7 @@ def main():
                 "--wrapper",
                 "-w",
                 dest="wrapper",
-                help="Value will be wrapped in this character (useful for updating values in brackets or commas). Will also be stripped in get-mode.",
+                help=f"{VALUE_COLOR + 'Value' + Style.RESET_ALL} will be wrapped in this character (useful for updating values in brackets or commas)",
             ),
             add_sub_parsers,
         )
@@ -845,7 +852,7 @@ def main():
                 dest="presets",
                 action="append",
                 nargs=2,
-                help="<Preset Name> <Preset Value> presets can be set with xet preset <Preset Name>.",
+                help=f"<Preset Name> <Preset {VALUE_COLOR + 'Value' + Style.RESET_ALL}> presets can be set with xet preset <Preset Name>",
             ),
             add_sub_parsers,
         )
@@ -858,7 +865,7 @@ def main():
         "--capture-group",
         "-c",
         nargs=1,
-        help="The group number which should be interpreted as the value. 0 means the entire match is interpreted as the value. Everything but the value itself is preserved, useful when values aren't at the end of a line",
+        help=f"The group number which should be interpreted as the {VALUE_COLOR + 'value' + Style.RESET_ALL}. 0 means the entire match is interpreted as the {VALUE_COLOR + 'value'}. Everything but the {VALUE_COLOR + 'value' + Style.RESET_ALL} itself is preserved",
     )
 
     """
@@ -867,14 +874,16 @@ def main():
 
     remove_parser = subparsers.add_parser("remove", help="Remove an entry from .xet")
     remove_parser.set_defaults(func=remove_entry)
-    remove_parser.add_argument("name", help="Name of the entry to remove")
+    remove_parser.add_argument(
+        "name", help=f"{NAME_COLOR + 'Name' + Style.RESET_ALL} of the entry to remove"
+    )
 
     remove_parser.add_argument(
         "--global",
         "-g",
         dest="g",
         action="store_true",
-        help="Use the global config.",
+        help="Use the global config",
     )
 
     remove_parser.add_argument(
@@ -890,7 +899,8 @@ def main():
     PRESET PARSER
     """
     preset_parser = subparsers.add_parser(
-        "preset", help="Set all values to a given preset."
+        "preset",
+        help=f"Set all {VALUE_COLOR + 'values' + Style.RESET_ALL} to a given preset",
     )
     preset_parser.set_defaults(func=set_presets)
     preset_parser.add_argument("preset", help="Name of the preset")
@@ -900,7 +910,7 @@ def main():
         "-g",
         dest="g",
         action="store_true",
-        help="Use the global config.",
+        help="Use the global config",
     )
 
     args = parser.parse_args()
