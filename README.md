@@ -58,7 +58,6 @@ xet add tag <name> <filepath> <tag> [options]
    - `-w, --wrapper <char>`: Wrap the value with a character (e.g., quotes), also gets stripped in get mode.
    - `-o, --occurences <index or slice>`: Specify which occurrences to modify (string formatted like a list index in python, can be slices).
    - `-e, --end <str>`: Will get appended in the line after value and wrappers, also gets stripped in get mode.
-   - `-d, --padding <int>`: Number of whitespace-padding which gets added after tag and before end. 
    - `-p, --preset <str> <str>`: Name and value of preset, option can be repeated to add multiple presets. 
    - `-s, --ssh <str>`: Hostname of ssh-host the file is found at, as found in openSSH config file.
    - `-g, --global`: Add the entry to the global `.xet`.
@@ -75,7 +74,6 @@ xet add lc <name> <filepath> <line> <column> [options]
    - `-f, --flags <flags>`: Optional flags for filtering.
    - `-w, --wrapper <char>`: Wrap the value with a character (e.g., quotes), also gets stripped in get mode.
    - `-e, --end <str>`: Will get appended in the line after value and wrappers, also gets stripped in get mode.
-   - `-d, --padding <int>`: Amount of whitespace-padding which gets added after tag and before end.
    - `-p, --preset <str> <str>`: Name and value of preset, option can be repeated to add multiple presets.
    - `-s, --ssh <str>`: Hostname of ssh-host the file is found at, as found in openSSH config file.
    - `-g, --global`: Add the entry to the global `.xet`.
