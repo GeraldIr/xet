@@ -8,8 +8,7 @@
         "ssh": null,
         "tag": "VERSION = ",
         "occurences": ":",
-        "end": "",
-        "padding": 0
+        "end": ""
     },
     "ppversion": {
         "type": "tag",
@@ -20,7 +19,6 @@
         "ssh": null,
         "tag": "version = ",
         "occurences": ":",
-        "end": "",
-        "padding": 0
+        "end": ""
     }
 }
