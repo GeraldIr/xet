@@ -1,4 +1,5 @@
-[![Upload Python Package](https://github.com/GeraldIr/xet/actions/workflows/python-publish.yml/badge.svg)](https://github.com/GeraldIr/xet/actions/workflows/python-publish.yml)
+[![build](https://github.com/GeraldIr/xet/actions/workflows/python-publish.yml/badge.svg)](https://github.com/GeraldIr/xet/actions/workflows/python-publish.yml)
+![version](https://img.shields.io/pypi/v/xet)
 
 # xet CLI Usage Guide
 
