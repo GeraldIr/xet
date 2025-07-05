@@ -1,10 +1,10 @@
 [project]
 name = "xet"
-version = "1.1.0"
+version = "1.2.0"
 
 [tool.poetry]
 name = "xet"
-version = "1.1.0"
+version = "1.2.0"
 description = "CLI Tool for quickly updating values across your project/machine."
 readme = "README.md"
 authors = ["Art"]
@@ -13,6 +13,7 @@ authors = ["Art"]
 python = "^3.10"
 argparse = "^1.4.0"
 fabric = "^3.2.2"
+colorama = "^0.4.6"
 
 [build-system]
 requires = ["poetry-core"]

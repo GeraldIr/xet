@@ -31,7 +31,7 @@ xet init
 
 Creates an empty `.xet` if it does not already exist.
 
-Any xet command will use the `.xet` file in the immediate directory, unless the  `-g, --global` flag is set, then the global  `.xet` file will be used instead.
+Any xet command will use the `.xet` file in the immediate directory, if there is no local `.xet` the global  `.xet` file will be used instead. You can force the usage of the global `.xet` using the `-g, --global` flag.
 
 ```sh
 xet edit
@@ -41,6 +41,11 @@ xet edit
 
 Opens `.xet` in your standard editor or nano.
 
+```sh
+xet which
+```
+
+Shows the absolute path to the default `.xet` that will be used if any xet command is run.
 
 ### Add Entries to Configuration
 

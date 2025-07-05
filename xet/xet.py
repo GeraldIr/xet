@@ -10,7 +10,7 @@ from fabric import Connection
 
 
 CONFIG_FILE = ".xet"
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 NL = "\n"
 
@@ -21,9 +21,10 @@ PATH_COLOR = Fore.MAGENTA
 SEP_COLOR = Fore.CYAN
 
 
-def get_config_path(g=False):
+def _get_config_path(g=False, init=False):
     """Return the config file path, supporting XDG_CONFIG_HOME for global config"""
-    if g:
+
+    if g or (not os.path.exists(CONFIG_FILE) and not init):
         xdg_config = os.environ.get("XDG_CONFIG_HOME")
         if xdg_config:
             return os.path.join(xdg_config, CONFIG_FILE)
@@ -33,29 +34,40 @@ def get_config_path(g=False):
         return CONFIG_FILE
 
 
+def get_abs_config_path(g=False, init=False):
+    return os.path.abspath(_get_config_path(g=g, init=init))
+
+
 def init_config(args):
     """Initialize a .xet file"""
 
-    if os.path.exists(get_config_path(args.g)):
+    if os.path.exists(get_abs_config_path(args.g, init=True)):
         print("Configuration already exists")
         return
-    with open(get_config_path(args.g), "w") as f:
+    with open(get_abs_config_path(args.g, init=True), "w") as f:
         json.dump({}, f)
 
 
-def parse_config(except_flags=None, only_flags=None, names=None, preset=None, g=False):
-    """Parse .xet, handling entries and applying -e/-o/-n filters"""
+def filter_config(
+    except_flags=None,
+    only_flags=None,
+    names=None,
+    preset=None,
+    path=None,
+    g=False,
+):
+    """Parse .xet, handling entries and applying -e/-o/-n/-p filters"""
 
-    except_flags = set(except_flags) if except_flags else set()
-    only_flags = set(only_flags) if only_flags else set()
-
-    config_path = get_config_path(g=g)
+    config_path = get_abs_config_path(g=g)
 
     if not os.path.exists(config_path):
         print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
         sys.exit(1)
     with open(config_path, mode="r") as f:
         config: dict = json.load(f)
+
+    except_flags = set(except_flags) if except_flags else set()
+    only_flags = set(only_flags) if only_flags else set()
 
     if preset:
         preset_entries = [
@@ -70,6 +82,14 @@ def parse_config(except_flags=None, only_flags=None, names=None, preset=None, g=
         names = [name for name in names if name in config]
         config = {k: v for k, v in zip(names, [config[name] for name in names])}
 
+    if path:
+        path_entries = [
+            name for name in config.keys() if config[name]["filepath"] in path
+        ]
+        config = {
+            k: v for k, v in zip(path_entries, [config[name] for name in path_entries])
+        }
+
     filtered_config = {}
 
     for key, entry in config.items():
@@ -81,12 +101,33 @@ def parse_config(except_flags=None, only_flags=None, names=None, preset=None, g=
                 continue
         elif only_flags:
             continue
-        if entry["type"] == "lc":
-            entry["column"] = entry["column"]
-            entry["line"] = entry["line"]
+
         filtered_config[key] = entry
 
-    return filtered_config
+    return filtered_config.keys()
+
+
+def parse_config(
+    except_flags=None, only_flags=None, names=None, preset=None, path=None, g=False
+):
+    config_path = get_abs_config_path(g=g)
+
+    if not os.path.exists(config_path):
+        print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
+        sys.exit(1)
+    with open(config_path, mode="r") as f:
+        config: dict = json.load(f)
+
+    filtered_keys = filter_config(
+        except_flags=except_flags,
+        only_flags=only_flags,
+        names=names,
+        preset=preset,
+        path=path,
+        g=g,
+    )
+
+    return {k: v for k, v in config.items() if k in filtered_keys}
 
 
 def _parse_index_or_slice(s):
@@ -547,7 +588,55 @@ def add_entry(args):
             "occurences": args.occurences if args.occurences else ":",
         }
 
-    with open(get_config_path(g=args.g), mode="w") as f:
+    with open(get_abs_config_path(g=args.g), mode="w") as f:
+        json.dump(config, f, indent=4)
+
+
+def _update_name(args):
+    config = parse_config(g=args.g)
+
+    config[args.updatedName] = config[args.name]
+    config.pop(args.name)
+
+    return config
+
+
+def _load_config(g=False):
+    config_path = get_abs_config_path(g=g)
+
+    if not os.path.exists(config_path):
+        print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
+        sys.exit(1)
+    with open(config_path, mode="r") as f:
+        config: dict = json.load(f)
+
+    return config
+
+
+def _update_path(args):
+    """Update the path of entries"""
+
+    config = _load_config(args.g)
+
+    filtered_keys = filter_config(
+        except_flags=args.e, only_flags=args.o, names=args.n, path=args.p, g=args.g
+    )
+
+    for entry in filtered_keys:
+        config[entry]["filepath"] = args.updatedPath
+
+    return config
+
+
+def update_entry(args):
+    """Update entries in the .xet"""
+
+    if args.subcommand == "name":
+        config = _update_name(args=args)
+    elif args.subcommand == "path":
+        config = _update_path(args=args)
+
+    with open(get_abs_config_path(g=args.g), mode="w") as f:
         json.dump(config, f, indent=4)
 
 
@@ -557,18 +646,44 @@ def remove_entry(args):
 
     config.pop(args.name)
 
-    with open(get_config_path(g=args.g), mode="w") as f:
+    with open(get_abs_config_path(g=args.g), mode="w") as f:
         json.dump(config, f, indent=4)
 
 
 def edit_config(args):
-    editor = os.environ.get("EDITOR", "nano")
-    subprocess.run([editor, get_config_path(args.g)])
+    """Edit .xet with default editor"""
+    editor = os.environ.get("EDITOR")
+    if editor:
+        subprocess.run([editor, get_abs_config_path(args.g)])
+    else:
+        print("No default editor found.")
+
+
+def which_config(args):
+    """Outputs the .xet that gets defaulted to in the current directory"""
+    print(get_abs_config_path())
+
+
+def show_config(args):
+    """Outputs the .xet entries with all given filters applied"""
+    print(
+        json.dumps(
+            parse_config(
+                except_flags=args.e,
+                only_flags=args.o,
+                names=args.n,
+                path=args.p,
+                g=args.g,
+            ),
+            indent=4,
+        )
+    )
 
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="xet", description="A CLI tool to manage values across multiple files"
+        prog="xet",
+        description="A CLI tool to manage values across multiple files, projects and even machines",
     )
 
     subparsers = parser.add_subparsers(
@@ -586,7 +701,7 @@ def main():
         "-g",
         dest="g",
         action="store_true",
-        help="Use the global config",
+        help="Force use the global config",
     )
 
     edit_parser = subparsers.add_parser(
@@ -602,6 +717,52 @@ def main():
         help="Edit global config",
     )
 
+    """WHICH PARSER"""
+    path_parser = subparsers.add_parser("which", help="Prints path of .xet")
+    path_parser.set_defaults(func=which_config)
+
+    """SHOW PARSER"""
+
+    """GET PARSER"""
+    show_parser = subparsers.add_parser(
+        "show",
+        help=f"Show entries listed in the .xet",
+    )
+    show_parser.set_defaults(func=show_config)
+    show_parser.add_argument(
+        "--global",
+        "-g",
+        dest="g",
+        action="store_true",
+        help="Use the global config",
+    )
+    show_parser.add_argument(
+        "--except", "-e", dest="e", nargs="+", help="Exclude entries with these flags"
+    )
+    show_parser.add_argument(
+        "--only",
+        "-o",
+        dest="o",
+        nargs="+",
+        help="Include only entries with these flags",
+    )
+    show_parser.add_argument(
+        "--names",
+        "-n",
+        dest="n",
+        nargs="*",
+        help=f"Include only entries with the given {NAME_COLOR + 'names' + Style.RESET_ALL}",
+    )
+
+    show_parser.add_argument(
+        "-p",
+        "--path",
+        dest="p",
+        nargs="+",
+        help=f"Include only entries with these {PATH_COLOR + 'paths'}",
+    )
+
+    """GET PARSER"""
     get_parser = subparsers.add_parser(
         "get",
         help=f"Get {VALUE_COLOR + 'values' + Style.RESET_ALL} from entries listed in the .xet",
@@ -633,6 +794,14 @@ def main():
     )
 
     get_parser.add_argument(
+        "-p",
+        "--path",
+        dest="p",
+        nargs="+",
+        help=f"Include only entries with these {PATH_COLOR + 'paths'}",
+    )
+
+    get_parser.add_argument(
         "-v",
         "--verbose",
         dest="verbosity",
@@ -640,6 +809,8 @@ def main():
         action="count",
         default=0,
     )
+
+    """SET PARSER"""
 
     set_parser = subparsers.add_parser(
         "set",
@@ -673,6 +844,14 @@ def main():
         dest="n",
         nargs="*",
         help=f"Include only entries with the given {NAME_COLOR + 'names' + Style.RESET_ALL}",
+    )
+
+    set_parser.add_argument(
+        "-p",
+        "--path",
+        dest="path",
+        nargs="+",
+        help=f"Include only entries with these {PATH_COLOR + 'paths'}",
     )
 
     set_parser.add_argument(
@@ -866,6 +1045,109 @@ def main():
         "-c",
         nargs=1,
         help=f"The group number which should be interpreted as the {VALUE_COLOR + 'value' + Style.RESET_ALL}. 0 means the entire match is interpreted as the {VALUE_COLOR + 'value'}. Everything but the {VALUE_COLOR + 'value' + Style.RESET_ALL} itself is preserved",
+    )
+
+    """
+    UPDATE PARSER
+    """
+
+    update_parser = subparsers.add_parser("update", help="Update entries in the .xet")
+
+    update_sub_parser = update_parser.add_subparsers(dest="subcommand")
+
+    update_name_parser = update_sub_parser.add_parser(
+        "name", help=f"Update the {NAME_COLOR + 'name'} of an entry"
+    )
+
+    update_path_parser = update_sub_parser.add_parser(
+        "path", help=f"Update the {PATH_COLOR + 'path'} of entries"
+    )
+
+    update_sub_parsers = [update_name_parser, update_path_parser]
+
+    list(map(lambda sub: sub.set_defaults(func=update_entry), update_sub_parsers))
+
+    # unique positional arguments
+
+    # name parser
+    update_name_parser.add_argument(
+        "name", help=f"The {NAME_COLOR + 'name'} of the entry to be updated"
+    )
+    update_name_parser.add_argument(
+        "updatedName",
+        help=f"The updated {NAME_COLOR + 'name'} of the entry",
+    )
+
+    # path parser
+
+    update_path_parser.add_argument(
+        "updatedPath", help=f"The updated {PATH_COLOR + 'path'} of the entries"
+    )
+
+    # non-unique optional arguments
+
+    list(  # Add only argument to update path sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--only",
+                "-o",
+                dest="o",
+                nargs="*",
+                help="Include only entries with these flags",
+            ),
+            [update_path_parser],
+        )
+    )
+
+    list(  # Add except argument to update path sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--except",
+                "-e",
+                dest="e",
+                nargs="+",
+                help="Exclude entries with these flags",
+            ),
+            [update_path_parser],
+        )
+    )
+
+    list(  # Add name argument to update path sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--names",
+                "-n",
+                dest="n",
+                nargs="*",
+                help=f"Include only entries with the given {NAME_COLOR + 'names' + Style.RESET_ALL}",
+            ),
+            [update_path_parser],
+        )
+    )
+    list(  # Add path argument to update path sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "-p",
+                "--path",
+                dest="p",
+                nargs="+",
+                help=f"Include only entries with these {PATH_COLOR + 'paths'}",
+            ),
+            [update_path_parser],
+        )
+    )
+
+    list(  # Add global argument to all update sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--global",
+                "-g",
+                action="store_true",
+                dest="g",
+                help="Update in the global .xet",
+            ),
+            update_sub_parsers,
+        )
     )
 
     """
