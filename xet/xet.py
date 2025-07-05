@@ -8,9 +8,9 @@ from colorama import Fore, Style
 from typing import Union
 from fabric import Connection
 
-
-CONFIG_FILE = ".xet"
 VERSION = "1.2.0"
+CONFIG_FILE = ".xet"
+HISTORY_FILE = ".xet_history"
 
 NL = "\n"
 
@@ -32,6 +32,14 @@ def _get_config_path(g=False, init=False):
             return os.path.join(os.path.expanduser("~"), CONFIG_FILE)
     else:
         return CONFIG_FILE
+
+
+def _get_history_path():
+    xdg_config = os.environ.get("XDG_CONFIG_HOME")
+    if xdg_config:
+        return os.path.join(xdg_config, HISTORY_FILE)
+    else:
+        return os.path.join(os.path.expanduser("~"), HISTORY_FILE)
 
 
 def get_abs_config_path(g=False, init=False):
@@ -613,8 +621,8 @@ def _load_config(g=False):
     return config
 
 
-def _update_path(args):
-    """Update the path of entries"""
+def _update_property(args, property: str = None, updatedValue: str = ""):
+    """Update the given property of entries"""
 
     config = _load_config(args.g)
 
@@ -623,7 +631,7 @@ def _update_path(args):
     )
 
     for entry in filtered_keys:
-        config[entry]["filepath"] = args.updatedPath
+        config[entry][property] = updatedValue
 
     return config
 
@@ -634,7 +642,13 @@ def update_entry(args):
     if args.subcommand == "name":
         config = _update_name(args=args)
     elif args.subcommand == "path":
-        config = _update_path(args=args)
+        config = _update_property(
+            args=args, property="filepath", updatedValue=args.updatedPath
+        )
+    elif args.subcommand == "wrapper":
+        config = _update_property(
+            args=args, property="wrapper", updatedValue=args.updatedWrapper
+        )
 
     with open(get_abs_config_path(g=args.g), mode="w") as f:
         json.dump(config, f, indent=4)
@@ -680,6 +694,25 @@ def show_config(args):
     )
 
 
+def _load_history():
+    with open(_get_history_path(), mode="r") as f:
+        history: dict = json.load(f)
+
+    return history
+
+
+def forget(args): ...
+
+
+def undo(args): ...
+
+
+def redo(args): ...
+
+
+def snapshot(args): ...
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="xet",
@@ -722,45 +755,11 @@ def main():
     path_parser.set_defaults(func=which_config)
 
     """SHOW PARSER"""
-
-    """GET PARSER"""
     show_parser = subparsers.add_parser(
         "show",
         help=f"Show entries listed in the .xet",
     )
     show_parser.set_defaults(func=show_config)
-    show_parser.add_argument(
-        "--global",
-        "-g",
-        dest="g",
-        action="store_true",
-        help="Use the global config",
-    )
-    show_parser.add_argument(
-        "--except", "-e", dest="e", nargs="+", help="Exclude entries with these flags"
-    )
-    show_parser.add_argument(
-        "--only",
-        "-o",
-        dest="o",
-        nargs="+",
-        help="Include only entries with these flags",
-    )
-    show_parser.add_argument(
-        "--names",
-        "-n",
-        dest="n",
-        nargs="*",
-        help=f"Include only entries with the given {NAME_COLOR + 'names' + Style.RESET_ALL}",
-    )
-
-    show_parser.add_argument(
-        "-p",
-        "--path",
-        dest="p",
-        nargs="+",
-        help=f"Include only entries with these {PATH_COLOR + 'paths'}",
-    )
 
     """GET PARSER"""
     get_parser = subparsers.add_parser(
@@ -768,38 +767,6 @@ def main():
         help=f"Get {VALUE_COLOR + 'values' + Style.RESET_ALL} from entries listed in the .xet",
     )
     get_parser.set_defaults(func=get_value)
-    get_parser.add_argument(
-        "--global",
-        "-g",
-        dest="g",
-        action="store_true",
-        help="Use the global config",
-    )
-    get_parser.add_argument(
-        "--except", "-e", dest="e", nargs="+", help="Exclude entries with these flags"
-    )
-    get_parser.add_argument(
-        "--only",
-        "-o",
-        dest="o",
-        nargs="+",
-        help="Include only entries with these flags",
-    )
-    get_parser.add_argument(
-        "--names",
-        "-n",
-        dest="n",
-        nargs="*",
-        help=f"Include only entries with the given {NAME_COLOR + 'names' + Style.RESET_ALL}",
-    )
-
-    get_parser.add_argument(
-        "-p",
-        "--path",
-        dest="p",
-        nargs="+",
-        help=f"Include only entries with these {PATH_COLOR + 'paths'}",
-    )
 
     get_parser.add_argument(
         "-v",
@@ -819,48 +786,6 @@ def main():
     set_parser.set_defaults(func=set_value)
     set_parser.add_argument(
         "value", help=f"{VALUE_COLOR + 'Value' + Style.RESET_ALL} to set"
-    )
-
-    set_parser.add_argument(
-        "--global",
-        "-g",
-        dest="g",
-        action="store_true",
-        help="Use the global config",
-    )
-    set_parser.add_argument(
-        "--except", "-e", dest="e", nargs="*", help="Exclude entries with these flags"
-    )
-    set_parser.add_argument(
-        "--only",
-        "-o",
-        dest="o",
-        nargs="*",
-        help="Include only entries with these flags",
-    )
-    set_parser.add_argument(
-        "--names",
-        "-n",
-        dest="n",
-        nargs="*",
-        help=f"Include only entries with the given {NAME_COLOR + 'names' + Style.RESET_ALL}",
-    )
-
-    set_parser.add_argument(
-        "-p",
-        "--path",
-        dest="path",
-        nargs="+",
-        help=f"Include only entries with these {PATH_COLOR + 'paths'}",
-    )
-
-    set_parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="verbosity",
-        help="Enable verbose output",
-        action="count",
-        default=0,
     )
 
     """
@@ -1063,7 +988,11 @@ def main():
         "path", help=f"Update the {PATH_COLOR + 'path'} of entries"
     )
 
-    update_sub_parsers = [update_name_parser, update_path_parser]
+    update_wrapper_parser = update_sub_parser.add_parser(
+        "wrapper", help=f"Update the wrapper of entries"
+    )
+
+    update_sub_parsers = [update_name_parser, update_path_parser, update_wrapper_parser]
 
     list(map(lambda sub: sub.set_defaults(func=update_entry), update_sub_parsers))
 
@@ -1084,70 +1013,10 @@ def main():
         "updatedPath", help=f"The updated {PATH_COLOR + 'path'} of the entries"
     )
 
-    # non-unique optional arguments
+    # wrapper parser
 
-    list(  # Add only argument to update path sub parsers
-        map(
-            lambda sub: sub.add_argument(
-                "--only",
-                "-o",
-                dest="o",
-                nargs="*",
-                help="Include only entries with these flags",
-            ),
-            [update_path_parser],
-        )
-    )
-
-    list(  # Add except argument to update path sub parsers
-        map(
-            lambda sub: sub.add_argument(
-                "--except",
-                "-e",
-                dest="e",
-                nargs="+",
-                help="Exclude entries with these flags",
-            ),
-            [update_path_parser],
-        )
-    )
-
-    list(  # Add name argument to update path sub parsers
-        map(
-            lambda sub: sub.add_argument(
-                "--names",
-                "-n",
-                dest="n",
-                nargs="*",
-                help=f"Include only entries with the given {NAME_COLOR + 'names' + Style.RESET_ALL}",
-            ),
-            [update_path_parser],
-        )
-    )
-    list(  # Add path argument to update path sub parsers
-        map(
-            lambda sub: sub.add_argument(
-                "-p",
-                "--path",
-                dest="p",
-                nargs="+",
-                help=f"Include only entries with these {PATH_COLOR + 'paths'}",
-            ),
-            [update_path_parser],
-        )
-    )
-
-    list(  # Add global argument to all update sub parsers
-        map(
-            lambda sub: sub.add_argument(
-                "--global",
-                "-g",
-                action="store_true",
-                dest="g",
-                help="Update in the global .xet",
-            ),
-            update_sub_parsers,
-        )
+    update_wrapper_parser.add_argument(
+        "updatedWrapper", help=f"The updated wrapper of the entries"
     )
 
     """
@@ -1193,6 +1062,131 @@ def main():
         dest="g",
         action="store_true",
         help="Use the global config",
+    )
+
+    snapshot_parser = subparsers.add_parser(
+        "snapshot",
+        help=f"Creates a snapshot of the {VALUE_COLOR + 'values'} of the filtered entries and adds a preset.",
+    )
+
+    snapshot_parser.set_defaults(func=snapshot)
+
+    snapshot_parser.add_argument(
+        "--global",
+        "-g",
+        dest="g",
+        action="store_true",
+        help="Use the global config",
+    )
+
+    """UNDO/REDO PARSERS"""
+
+    undo_parser = subparsers.add_parser(
+        "undo",
+        help=f"Undo the last xet command",
+    )
+    undo_parser.set_defaults(func=undo)
+
+    redo_parser = subparsers.add_parser(
+        "redo",
+        help=f"Redo the last undone xet command",
+    )
+    redo_parser.set_defaults(func=redo)
+
+    forget_parser = subparsers.add_parser(
+        "forget",
+        help=f"Reset the xet history",
+    )
+    redo_parser.set_defaults(func=forget)
+
+    # NON-UNIQUE ARGUMENTS OVERALL
+
+    list(  # Add only argument to update path sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--only",
+                "-o",
+                dest="o",
+                nargs="*",
+                help="Include only entries with these flags",
+            ),
+            [
+                update_path_parser,
+                update_wrapper_parser,
+                get_parser,
+                set_parser,
+                show_parser,
+            ],
+        )
+    )
+
+    list(  # Add except argument to update path sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--except",
+                "-e",
+                dest="e",
+                nargs="+",
+                help="Exclude entries with these flags",
+            ),
+            [
+                update_path_parser,
+                update_wrapper_parser,
+                get_parser,
+                set_parser,
+                show_parser,
+            ],
+        )
+    )
+
+    list(  # Add name argument to update path sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--names",
+                "-n",
+                dest="n",
+                nargs="*",
+                help=f"Include only entries with the given {NAME_COLOR + 'names' + Style.RESET_ALL}",
+            ),
+            [
+                update_path_parser,
+                update_wrapper_parser,
+                get_parser,
+                set_parser,
+                show_parser,
+            ],
+        )
+    )
+    list(  # Add path argument to update path sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "-p",
+                "--path",
+                dest="p",
+                nargs="+",
+                help=f"Include only entries with these {PATH_COLOR + 'paths' + Style.RESET_ALL}",
+            ),
+            [
+                update_path_parser,
+                update_wrapper_parser,
+                get_parser,
+                set_parser,
+                show_parser,
+            ],
+        )
+    )
+
+    list(  # Add global argument to all update sub parsers
+        map(
+            lambda sub: sub.add_argument(
+                "--global",
+                "-g",
+                action="store_true",
+                dest="g",
+                help="Update in the global .xet",
+            ),
+            [*update_sub_parsers, get_parser, set_parser, show_parser],
+        )
     )
 
     args = parser.parse_args()
