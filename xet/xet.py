@@ -4,9 +4,11 @@ import os
 import re
 import subprocess
 import sys
+from copy import deepcopy
 from colorama import Fore, Style
 from typing import Union
 from fabric import Connection
+import difflib
 
 VERSION = "1.2.0"
 CONFIG_FILE = ".xet"
@@ -219,6 +221,8 @@ def _set_tag_value(
 
     lines = _get_file_lines(filepath=filepath, ssh=ssh)
 
+    old_lines = deepcopy(lines)
+
     for i, line in enumerate(lines):
         if line.startswith(tag):
             found_occurences.append(i)
@@ -236,6 +240,8 @@ def _set_tag_value(
         )
 
     _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
+
+    return old_lines, lines
 
 
 def _get_tag_value(
@@ -292,6 +298,8 @@ def _set_lc_value(
 
     lines = _get_file_lines(filepath=filepath, ssh=ssh)
 
+    old_lines = deepcopy(lines)
+
     line -= 1
     column -= 1
 
@@ -310,6 +318,8 @@ def _set_lc_value(
     )
 
     _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
+
+    return old_lines, lines
 
 
 def _get_lc_value(
@@ -355,6 +365,8 @@ def _set_regex_value(
 ):
     lines = _get_file_lines(filepath=filepath, ssh=ssh)
 
+    old_lines = deepcopy(lines)
+
     found_occurences = []
 
     for i, line in enumerate(lines):
@@ -379,6 +391,8 @@ def _set_regex_value(
             )
 
     _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
+
+    return old_lines, lines
 
 
 def _get_regex_value(
@@ -440,7 +454,7 @@ def _set_value(entry, value):
         tag = entry["tag"]
         occurences = entry["occurences"]
         end = entry["end"]
-        _set_tag_value(
+        return _set_tag_value(
             filepath=filepath,
             tag=tag,
             occurences_slice=occurences,
@@ -453,7 +467,7 @@ def _set_value(entry, value):
         line = entry["line"]
         column = entry["column"]
         end = entry["end"]
-        _set_lc_value(
+        return _set_lc_value(
             filepath=filepath,
             line=line,
             column=column,
@@ -466,7 +480,7 @@ def _set_value(entry, value):
         regex = entry["regex"]
         group = entry["group"]
         occurences = entry["occurences"]
-        _set_regex_value(
+        return _set_regex_value(
             filepath=filepath,
             regex=regex,
             group=group,
@@ -489,8 +503,15 @@ def set_value(args):
     config = parse_config(
         except_flags=args.e, only_flags=args.o, names=args.n, g=args.g
     )
-    for entry in config.values():
-        _set_value(entry=entry, value=args.value)
+
+    diff = [
+        difflib.ndiff(old_lines, new_lines).
+        for old_lines, new_lines in [
+            _set_value(entry=entry, value=args.value) for entry in config.values()
+        ]
+    ]
+
+    _add_to_history(diff=diff)
 
 
 def get_value(args):
@@ -694,14 +715,33 @@ def show_config(args):
     )
 
 
+def _init_history():
+    history = {"past": [], "future": []}
+    with open(_get_history_path(), mode="w") as f:
+        json.dump(history, f, indent=4)
+
+
 def _load_history():
+    if not os.path.exists(_get_history_path()):
+        _init_history()
+
     with open(_get_history_path(), mode="r") as f:
         history: dict = json.load(f)
 
     return history
 
 
-def forget(args): ...
+def _add_to_history(diff: list):
+    history = _load_history()
+
+    history["past"].append(diff)
+
+    with open(_get_history_path(), mode="w") as f:
+        json.dump(history, f, indent=4)
+
+
+def forget(args):
+    _init_history()
 
 
 def undo(args): ...
@@ -729,26 +769,10 @@ def main():
 
     init_parser.set_defaults(func=init_config)
 
-    init_parser.add_argument(
-        "--global",
-        "-g",
-        dest="g",
-        action="store_true",
-        help="Force use the global config",
-    )
-
     edit_parser = subparsers.add_parser(
         "edit", help="Opens the .xet in the standard editor"
     )
     edit_parser.set_defaults(func=edit_config)
-
-    edit_parser.add_argument(
-        "--global",
-        "-g",
-        dest="g",
-        action="store_true",
-        help="Edit global config",
-    )
 
     """WHICH PARSER"""
     path_parser = subparsers.add_parser("which", help="Prints path of .xet")
@@ -1030,14 +1054,6 @@ def main():
     )
 
     remove_parser.add_argument(
-        "--global",
-        "-g",
-        dest="g",
-        action="store_true",
-        help="Use the global config",
-    )
-
-    remove_parser.add_argument(
         "-v",
         "--verbose",
         dest="verbosity",
@@ -1176,16 +1192,24 @@ def main():
         )
     )
 
-    list(  # Add global argument to all update sub parsers
+    list(  # Add global argument to parsers
         map(
             lambda sub: sub.add_argument(
                 "--global",
                 "-g",
                 action="store_true",
                 dest="g",
-                help="Update in the global .xet",
+                help="Use the global .xet",
             ),
-            [*update_sub_parsers, get_parser, set_parser, show_parser],
+            [
+                *update_sub_parsers,
+                get_parser,
+                set_parser,
+                show_parser,
+                edit_parser,
+                init_parser,
+                remove_parser,
+            ],
         )
     )
 
