@@ -47,10 +47,10 @@ jobs:
       - name: Pre-commit hooks
         run: poetry run pre-commit run --all-files
 
-      - name: Test with pytest
-        run: |
-          coverage run -m pytest  -v -s
+      - name: Run pytest
+        run: poetry run pytest --cov --cov-branch --cov-report=xml
 
-      - name: Generate Coverage Report
-        run: |
-          coverage report -m
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
