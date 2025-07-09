@@ -1,23 +1,23 @@
 {
-    "pyversion": {
-        "type": "tag",
-        "filepath": "xet/xet.py",
-        "flags": "ver",
-        "wrapper": "\"",
-        "presets": null,
-        "ssh": null,
-        "tag": "VERSION = ",
-        "occurences": ":",
-        "end": ""
-    },
     "ppversion": {
         "type": "tag",
         "filepath": "pyproject.toml",
-        "flags": "ver",
+        "flags": null,
         "wrapper": "\"",
         "presets": null,
         "ssh": null,
         "tag": "version = ",
+        "occurences": ":",
+        "end": ""
+    },
+    "pyversion": {
+        "type": "tag",
+        "filepath": "xet/xet.py",
+        "flags": null,
+        "wrapper": "\"",
+        "presets": null,
+        "ssh": null,
+        "tag": "VERSION = ",
         "occurences": ":",
         "end": ""
     }

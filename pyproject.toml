@@ -14,10 +14,21 @@ python = "^3.10"
 argparse = "^1.4.0"
 fabric = "^3.2.2"
 colorama = "^0.4.6"
+diff-match-patch = "20241021"
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "4.2.0"
+pytest = "^8.4.1"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+markers = [
+    "noinit: does not auto-init .xet in tests",
+    "serial",
+]
 
 [project.scripts]
 xet = "xet.cli:main"

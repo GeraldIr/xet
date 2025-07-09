@@ -8,11 +8,13 @@ from copy import deepcopy
 from colorama import Fore, Style
 from typing import Union
 from fabric import Connection
-import difflib
+import diff_match_patch as dmp
 
 VERSION = "1.2.0"
 CONFIG_FILE = ".xet"
 HISTORY_FILE = ".xet_history"
+
+DMP = dmp.diff_match_patch()
 
 NL = "\n"
 
@@ -504,14 +506,20 @@ def set_value(args):
         except_flags=args.e, only_flags=args.o, names=args.n, g=args.g
     )
 
-    diff = [
-        difflib.ndiff(old_lines, new_lines).
-        for old_lines, new_lines in [
-            _set_value(entry=entry, value=args.value) for entry in config.values()
+    patch = {
+        os.path.abspath(entry["filepath"]): DMP.patch_toText(
+            DMP.patch_make(
+                a=NL.join(new_lines),
+                b=DMP.diff_main(NL.join(new_lines), NL.join(old_lines)),
+            )
+        )
+        for entry, old_lines, new_lines in [
+            (entry, *_set_value(entry=entry, value=args.value))
+            for entry in config.values()
         ]
-    ]
+    }
 
-    _add_to_history(diff=diff)
+    _add_to_history(patch=patch)
 
 
 def get_value(args):
@@ -630,7 +638,7 @@ def _update_name(args):
     return config
 
 
-def _load_config(g=False):
+def load_config(g=False):
     config_path = get_abs_config_path(g=g)
 
     if not os.path.exists(config_path):
@@ -645,7 +653,7 @@ def _load_config(g=False):
 def _update_property(args, property: str = None, updatedValue: str = ""):
     """Update the given property of entries"""
 
-    config = _load_config(args.g)
+    config = load_config(args.g)
 
     filtered_keys = filter_config(
         except_flags=args.e, only_flags=args.o, names=args.n, path=args.p, g=args.g
@@ -731,10 +739,12 @@ def _load_history():
     return history
 
 
-def _add_to_history(diff: list):
+def _add_to_history(patch: list):
     history = _load_history()
 
-    history["past"].append(diff)
+    history["past"].insert(0, patch)
+
+    history["future"] = []
 
     with open(_get_history_path(), mode="w") as f:
         json.dump(history, f, indent=4)
@@ -744,16 +754,74 @@ def forget(args):
     _init_history()
 
 
-def undo(args): ...
+def undo(args):
+    history = _load_history()
+
+    if len(history["past"]) == 0:
+        print("Nothing to undo")
+        sys.exit(1)
+
+    to_undo = history["past"].pop(0)
+
+    to_future = {}
+    for filepath, patch in to_undo.items():
+        with open(filepath, mode="r") as f:
+            text = f.read()
+
+        patched_text, _ = DMP.patch_apply(patches=DMP.patch_fromText(patch), text=text)
+
+        with open(filepath, mode="w") as f:
+            f.write(patched_text)
+
+        to_future[filepath] = DMP.patch_toText(
+            DMP.patch_make(
+                a=patched_text,
+                b=DMP.diff_main(patched_text, text),
+            )
+        )
+
+    history["future"].append(to_future)
+
+    with open(_get_history_path(), mode="w") as f:
+        json.dump(history, f, indent=4)
 
 
-def redo(args): ...
+def redo(args):
+    history = _load_history()
+
+    if len(history["future"]) == 0:
+        print("Nothing to redo")
+        sys.exit(1)
+
+    to_redo = history["future"].pop(0)
+
+    to_past = {}
+    for filepath, patch in to_redo.items():
+        with open(filepath, mode="r") as f:
+            text = f.read()
+
+        patched_text, _ = DMP.patch_apply(patches=DMP.patch_fromText(patch), text=text)
+
+        with open(filepath, mode="w") as f:
+            f.write(patched_text)
+
+        to_past[filepath] = DMP.patch_toText(
+            DMP.patch_make(
+                a=patched_text,
+                b=DMP.diff_main(patched_text, text),
+            )
+        )
+
+    history["past"].insert(0, to_past)
+
+    with open(_get_history_path(), mode="w") as f:
+        json.dump(history, f, indent=4)
 
 
 def snapshot(args): ...
 
 
-def main():
+def main(args=None):
     parser = argparse.ArgumentParser(
         prog="xet",
         description="A CLI tool to manage values across multiple files, projects and even machines",
@@ -992,6 +1060,7 @@ def main():
     add_regex_parser.add_argument(
         "--capture-group",
         "-c",
+        dest="group",
         nargs=1,
         help=f"The group number which should be interpreted as the {VALUE_COLOR + 'value' + Style.RESET_ALL}. 0 means the entire match is interpreted as the {VALUE_COLOR + 'value'}. Everything but the {VALUE_COLOR + 'value' + Style.RESET_ALL} itself is preserved",
     )
@@ -1113,7 +1182,7 @@ def main():
         "forget",
         help=f"Reset the xet history",
     )
-    redo_parser.set_defaults(func=forget)
+    forget_parser.set_defaults(func=forget)
 
     # NON-UNIQUE ARGUMENTS OVERALL
 
@@ -1213,8 +1282,8 @@ def main():
         )
     )
 
-    args = parser.parse_args()
-    args.func(args)
+    exec = parser.parse_args(args=args)
+    exec.func(exec)
 
 
 if __name__ == "__main__":
