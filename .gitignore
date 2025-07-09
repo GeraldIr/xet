@@ -1,0 +1,9 @@
+.*
+!.xet
+!.gitignore
+
+**/__pycache__/
+
+# Development live testing
+
+test.txt
