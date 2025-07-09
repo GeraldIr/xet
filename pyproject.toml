@@ -19,6 +19,7 @@ diff-match-patch = "20241021"
 [tool.poetry.group.dev.dependencies]
 pre-commit = "4.2.0"
 pytest = "^8.4.1"
+pytest-cov = "^6.2.1"
 
 [build-system]
 requires = ["poetry-core"]
