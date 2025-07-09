@@ -6,8 +6,8 @@ import xet
 
 
 @pytest.fixture(autouse=True)
-def change_test_dir(request, monkeypatch):
-    monkeypatch.chdir(request.fspath.dirname)
+def change_test_dir(monkeypatch):
+    monkeypatch.chdir(os.path.abspath(__file__.rstrip(".py").rstrip(__name__)))
 
 
 @pytest.fixture(autouse=True)
@@ -104,7 +104,7 @@ def test_add():
 
 
 def test_get(capsys):
-    xet.main(["add", "tag", "test_1", "data/test.txt", "TEST1 = "])
+    xet.main(["add", "tag", "test_1", "./data/test.txt", "TEST1 = "])
     xet.main(["add", "tag", "test_2", "data/test.txt", "TEST2 = ", "-w", '"'])
     xet.main(["add", "tag", "test_3", "data/test.txt", "TEST3: ", "-w", "'"])
     xet.main(["add", "tag", "test_4", "data/test.txt", "TEST4, ", "-w", "__"])

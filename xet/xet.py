@@ -444,7 +444,7 @@ def _get_regex_value(
 def _set_value(entry, value):
     type, filepath, wrapper, ssh = (
         entry["type"],
-        entry["filepath"],
+        os.path.abspath(entry["filepath"]),
         entry["wrapper"],
         entry["ssh"],
     )
@@ -531,7 +531,7 @@ def get_value(args):
     for name, entry in config.items():
         type, filepath, wrapper, ssh, verbosity = (
             entry["type"],
-            entry["filepath"],
+            os.path.abspath(entry["filepath"]),
             entry["wrapper"],
             entry["ssh"],
             args.verbosity,
