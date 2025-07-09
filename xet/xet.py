@@ -5,10 +5,11 @@ import re
 import subprocess
 import sys
 from copy import deepcopy
-from colorama import Fore, Style
 from typing import Union
-from fabric import Connection
+
 import diff_match_patch as dmp
+from colorama import Fore, Style
+from fabric import Connection
 
 VERSION = "1.2.0"
 CONFIG_FILE = ".xet"
@@ -75,7 +76,7 @@ def filter_config(
     if not os.path.exists(config_path):
         print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
         sys.exit(1)
-    with open(config_path, mode="r") as f:
+    with open(config_path) as f:
         config: dict = json.load(f)
 
     except_flags = set(except_flags) if except_flags else set()
@@ -127,7 +128,7 @@ def parse_config(
     if not os.path.exists(config_path):
         print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
         sys.exit(1)
-    with open(config_path, mode="r") as f:
+    with open(config_path) as f:
         config: dict = json.load(f)
 
     filtered_keys = filter_config(
@@ -191,7 +192,7 @@ def _get_file_lines(filepath: str = "", ssh: str = None):
                 finally:
                     remote_file.close()
     else:
-        with open(filepath, "r") as f:
+        with open(filepath) as f:
             return f.read().splitlines()
 
 
@@ -237,9 +238,10 @@ def _set_tag_value(
         if wrapper:
             after_wrapper = lines[occurence_index].lstrip(tag).split(wrapper)[2]
             end = after_wrapper + end
-        lines[occurence_index] = (
-            f"{tag}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{end}"
-        )
+        lines[
+            occurence_index
+        ] = f"{tag}{wrapper if wrapper is not None else ''}\
+            {value}{wrapper if wrapper is not None else ''}{end}"
 
     _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
 
@@ -255,7 +257,6 @@ def _get_tag_value(
     verbosity: int = 0,
     ssh: str = None,
 ):
-
     found_occurences = []
 
     lines = _get_file_lines(filepath=filepath, ssh=ssh)
@@ -297,7 +298,6 @@ def _set_lc_value(
     value: str = "",
     ssh: str = None,
 ):
-
     lines = _get_file_lines(filepath=filepath, ssh=ssh)
 
     old_lines = deepcopy(lines)
@@ -315,9 +315,10 @@ def _set_lc_value(
         after_wrapper = lines[line][:column].split(wrapper)[2]
         end = after_wrapper + end
 
-    lines[line] = (
-        f"{lines[line][:column]}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{end}"
-    )
+    lines[
+        line
+    ] = f"{lines[line][:column]}{wrapper if wrapper is not None else ''}\
+        {value}{wrapper if wrapper is not None else ''}{end}"
 
     _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
 
@@ -333,7 +334,6 @@ def _get_lc_value(
     verbosity: int = 0,
     ssh: str = None,
 ):
-
     line -= 1
     column -= 1
 
@@ -382,15 +382,17 @@ def _set_regex_value(
 
     for occurence_index, occurence_match in filtered_occurences:
         if not group:
-            lines[occurence_index] = (
-                f"{occurence_match.string}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}"
-            )
+            lines[
+                occurence_index
+            ] = f"{occurence_match.string}{wrapper if wrapper is not None else ''}\
+                {value}{wrapper if wrapper is not None else ''}"
         else:
             start = lines[occurence_index][0 : occurence_match.start(group)]
             end = lines[occurence_index][occurence_match.end(group) :]
-            lines[occurence_index] = (
-                f"{start}{wrapper if wrapper is not None else ''}{value}{wrapper if wrapper is not None else ''}{end}"
-            )
+            lines[
+                occurence_index
+            ] = f"{start}{wrapper if wrapper is not None else ''}\
+                {value}{wrapper if wrapper is not None else ''}{end}"
 
     _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
 
@@ -420,7 +422,6 @@ def _get_regex_value(
     )
 
     for occurence_index, occurence_match in filtered_occurences:
-
         sanitized_value = (
             _sanitize_value(
                 value=occurence_match.group(group), wrapper=wrapper, end=None
@@ -541,7 +542,8 @@ def get_value(args):
 
         if verbosity >= 2:
             print(
-                f"{NAME_COLOR + name}{SEP_COLOR + ':'}{PATH_COLOR + filepath}{SEP_COLOR + ':'}",
+                f"{NAME_COLOR + name}{SEP_COLOR + ':'}\
+                {PATH_COLOR + filepath}{SEP_COLOR + ':'}",
                 end="",
             )
         if type == "tag":
@@ -564,7 +566,8 @@ def get_value(args):
             end = entry["end"]
             if verbosity >= 2:
                 print(
-                    f"{IDENTIFIER_COLOR + line}{SEP_COLOR + ':'}{IDENTIFIER_COLOR + column}{SEP_COLOR + ':' + Style.RESET_ALL}"
+                    f"{IDENTIFIER_COLOR + line}{SEP_COLOR + ':'}\
+                    {IDENTIFIER_COLOR + column}{SEP_COLOR + ':' + Style.RESET_ALL}"
                 )
             _get_lc_value(
                 filepath=filepath,
@@ -644,7 +647,7 @@ def load_config(g=False):
     if not os.path.exists(config_path):
         print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
         sys.exit(1)
-    with open(config_path, mode="r") as f:
+    with open(config_path) as f:
         config: dict = json.load(f)
 
     return config
@@ -733,7 +736,7 @@ def _load_history():
     if not os.path.exists(_get_history_path()):
         _init_history()
 
-    with open(_get_history_path(), mode="r") as f:
+    with open(_get_history_path()) as f:
         history: dict = json.load(f)
 
     return history
@@ -765,7 +768,7 @@ def undo(args):
 
     to_future = {}
     for filepath, patch in to_undo.items():
-        with open(filepath, mode="r") as f:
+        with open(filepath) as f:
             text = f.read()
 
         patched_text, _ = DMP.patch_apply(patches=DMP.patch_fromText(patch), text=text)
@@ -797,7 +800,7 @@ def redo(args):
 
     to_past = {}
     for filepath, patch in to_redo.items():
-        with open(filepath, mode="r") as f:
+        with open(filepath) as f:
             text = f.read()
 
         patched_text, _ = DMP.patch_apply(patches=DMP.patch_fromText(patch), text=text)
@@ -818,13 +821,15 @@ def redo(args):
         json.dump(history, f, indent=4)
 
 
-def snapshot(args): ...
+def snapshot(args):
+    ...
 
 
 def main(args=None):
     parser = argparse.ArgumentParser(
         prog="xet",
-        description="A CLI tool to manage values across multiple files, projects and even machines",
+        description="A CLI tool to manage values across multiple files, projects\
+                    and even machines",
     )
 
     subparsers = parser.add_subparsers(
@@ -849,14 +854,15 @@ def main(args=None):
     """SHOW PARSER"""
     show_parser = subparsers.add_parser(
         "show",
-        help=f"Show entries listed in the .xet",
+        help="Show entries listed in the .xet",
     )
     show_parser.set_defaults(func=show_config)
 
     """GET PARSER"""
     get_parser = subparsers.add_parser(
         "get",
-        help=f"Get {VALUE_COLOR + 'values' + Style.RESET_ALL} from entries listed in the .xet",
+        help=f"Get {VALUE_COLOR + 'values' + Style.RESET_ALL} from entries\
+        listed in the .xet",
     )
     get_parser.set_defaults(func=get_value)
 
@@ -864,7 +870,9 @@ def main(args=None):
         "-v",
         "--verbose",
         dest="verbosity",
-        help=f"Enable verbose output. -v outputs the entire line, -vv also outputs the entry {NAME_COLOR + 'name'} {PATH_COLOR + 'filepath' + Style.RESET_ALL} and {IDENTIFIER_COLOR + 'identifier/s' + Style.RESET_ALL}",
+        help=f"Enable verbose output. -v outputs the entire line, -vv also outputs the\
+            entry {NAME_COLOR + 'name'} {PATH_COLOR + 'filepath' + Style.RESET_ALL}\
+            and {IDENTIFIER_COLOR + 'identifier/s' + Style.RESET_ALL}",
         action="count",
         default=0,
     )
@@ -873,7 +881,8 @@ def main(args=None):
 
     set_parser = subparsers.add_parser(
         "set",
-        help=f"Set a {VALUE_COLOR + 'value' + Style.RESET_ALL} in files listed in the .xet",
+        help=f"Set a {VALUE_COLOR + 'value' + Style.RESET_ALL}\
+            in files listed in the .xet",
     )
     set_parser.set_defaults(func=set_value)
     set_parser.add_argument(
@@ -890,17 +899,20 @@ def main(args=None):
 
     add_tag_parser = add_sub_parser.add_parser(
         "tag",
-        help=f"Add a {IDENTIFIER_COLOR + 'tag' + Style.RESET_ALL} identifier entry to the .xet",
+        help=f"Add a {IDENTIFIER_COLOR + 'tag' + Style.RESET_ALL}\
+              identifier entry to the .xet",
     )
 
     add_lc_parser = add_sub_parser.add_parser(
         "lc",
-        help=f"Add a {IDENTIFIER_COLOR + 'line/column' + Style.RESET_ALL} identifier entry to the .xet",
+        help=f"Add a {IDENTIFIER_COLOR + 'line/column' + Style.RESET_ALL}\
+              identifier entry to the .xet",
     )
 
     add_regex_parser = add_sub_parser.add_parser(
         "regex",
-        help=f"Add a {IDENTIFIER_COLOR + 'regex' + Style.RESET_ALL} identifier entry to the .xet",
+        help=f"Add a {IDENTIFIER_COLOR + 'regex' + Style.RESET_ALL}\
+              identifier entry to the .xet",
     )
 
     add_sub_parsers = [add_tag_parser, add_lc_parser, add_regex_parser]
@@ -913,7 +925,8 @@ def main(args=None):
         map(  # Add name argument to all add sub parsers
             lambda sub: sub.add_argument(
                 "name",
-                help=f"The {NAME_COLOR + 'name' + Style.RESET_ALL} of the entry in the config",
+                help=f"The {NAME_COLOR + 'name' + Style.RESET_ALL}\
+                      of the entry in the config",
             ),
             add_sub_parsers,
         )
@@ -922,7 +935,9 @@ def main(args=None):
     list(
         map(  # Add Filepath argument to all add sub parsers
             lambda sub: sub.add_argument(
-                "filepath", help=f"{PATH_COLOR + 'Path' + Style.RESET_ALL} of the file"
+                "filepath",
+                help=f"{PATH_COLOR + 'Path' + Style.RESET_ALL}\
+                      of the file",
             ),
             add_sub_parsers,
         )
@@ -933,23 +948,28 @@ def main(args=None):
     # tag parser
     add_tag_parser.add_argument(
         "tag",
-        help=f"{IDENTIFIER_COLOR + 'Tag' + Style.RESET_ALL} identifying the line in the file",
+        help=f"{IDENTIFIER_COLOR + 'Tag' + Style.RESET_ALL}\
+              identifying the line in the file",
     )
 
     # lc parser
     add_lc_parser.add_argument(
         "line",
-        help=f"The {IDENTIFIER_COLOR + 'line' + Style.RESET_ALL} at which the value is located",
+        help=f"The {IDENTIFIER_COLOR + 'line' + Style.RESET_ALL}\
+              at which the value is located",
     )
     add_lc_parser.add_argument(
         "column",
-        help=f"The {IDENTIFIER_COLOR + 'column' + Style.RESET_ALL} at which the value is located",
+        help=f"The {IDENTIFIER_COLOR + 'column' + Style.RESET_ALL}\
+              at which the value is located",
     )
 
     # regex parser
     add_regex_parser.add_argument(
         "regex",
-        help=f"The {IDENTIFIER_COLOR + 'regular expression' + Style.RESET_ALL}, if no group is specified values are updated after any given match (like tags)",
+        help=f"The {IDENTIFIER_COLOR + 'regular expression' + Style.RESET_ALL}\
+            , if no group is specified values are updated after any given\
+            match (like tags)",
     )
 
     # non-unique optional arguments
@@ -974,7 +994,7 @@ def main(args=None):
                 "--end",
                 dest="end",
                 default="",
-                help=f"Will be written at the very end of the line",
+                help="Will be written at the very end of the line",
             ),
             [add_tag_parser, add_lc_parser],
         )
@@ -987,7 +1007,10 @@ def main(args=None):
                 "-o",
                 nargs="*",
                 dest="occurences",
-                help=f"Which occurence of the {IDENTIFIER_COLOR + 'tag/match' + Style.RESET_ALL} should be included, can be an integer, list of integers or the string 'all'",
+                help=f"Which occurence of the \
+                    {IDENTIFIER_COLOR + 'tag/match' + Style.RESET_ALL}\
+                    should be included, can be an integer,\
+                    list of integers or the string 'all'",
             ),
             [add_tag_parser, add_regex_parser],
         )
@@ -1034,7 +1057,8 @@ def main(args=None):
                 "--wrapper",
                 "-w",
                 dest="wrapper",
-                help=f"{VALUE_COLOR + 'Value' + Style.RESET_ALL} will be wrapped in this character (useful for updating values in brackets or commas)",
+                help=f"{VALUE_COLOR + 'Value' + Style.RESET_ALL}\
+                      will be wrapped in this character",
             ),
             add_sub_parsers,
         )
@@ -1048,7 +1072,8 @@ def main(args=None):
                 dest="presets",
                 action="append",
                 nargs=2,
-                help=f"<Preset Name> <Preset {VALUE_COLOR + 'Value' + Style.RESET_ALL}> presets can be set with xet preset <Preset Name>",
+                help=f"<Preset Name> <Preset {VALUE_COLOR + 'Value' + Style.RESET_ALL}>\
+                      presets can be set with xet preset <Preset Name>",
             ),
             add_sub_parsers,
         )
@@ -1062,7 +1087,11 @@ def main(args=None):
         "-c",
         dest="group",
         nargs=1,
-        help=f"The group number which should be interpreted as the {VALUE_COLOR + 'value' + Style.RESET_ALL}. 0 means the entire match is interpreted as the {VALUE_COLOR + 'value'}. Everything but the {VALUE_COLOR + 'value' + Style.RESET_ALL} itself is preserved",
+        help=f"The group number which should be interpreted as the\
+                {VALUE_COLOR + 'value' + Style.RESET_ALL}.\
+                0 means the entire match is interpreted as the\
+                {VALUE_COLOR + 'value'}. Everything but the\
+                {VALUE_COLOR + 'value' + Style.RESET_ALL} itself is preserved",
     )
 
     """
@@ -1082,7 +1111,7 @@ def main(args=None):
     )
 
     update_wrapper_parser = update_sub_parser.add_parser(
-        "wrapper", help=f"Update the wrapper of entries"
+        "wrapper", help="Update the wrapper of entries"
     )
 
     update_sub_parsers = [update_name_parser, update_path_parser, update_wrapper_parser]
@@ -1109,7 +1138,7 @@ def main(args=None):
     # wrapper parser
 
     update_wrapper_parser.add_argument(
-        "updatedWrapper", help=f"The updated wrapper of the entries"
+        "updatedWrapper", help="The updated wrapper of the entries"
     )
 
     """
@@ -1151,7 +1180,8 @@ def main(args=None):
 
     snapshot_parser = subparsers.add_parser(
         "snapshot",
-        help=f"Creates a snapshot of the {VALUE_COLOR + 'values'} of the filtered entries and adds a preset.",
+        help=f"Creates a snapshot of the {VALUE_COLOR + 'values' + Style.RESET_ALL}\
+            of the filtered entries and adds a preset",
     )
 
     snapshot_parser.set_defaults(func=snapshot)
@@ -1168,19 +1198,19 @@ def main(args=None):
 
     undo_parser = subparsers.add_parser(
         "undo",
-        help=f"Undo the last xet command",
+        help="Undo the last xet command",
     )
     undo_parser.set_defaults(func=undo)
 
     redo_parser = subparsers.add_parser(
         "redo",
-        help=f"Redo the last undone xet command",
+        help="Redo the last undone xet command",
     )
     redo_parser.set_defaults(func=redo)
 
     forget_parser = subparsers.add_parser(
         "forget",
-        help=f"Reset the xet history",
+        help="Reset the xet history",
     )
     forget_parser.set_defaults(func=forget)
 
@@ -1231,7 +1261,8 @@ def main(args=None):
                 "-n",
                 dest="n",
                 nargs="*",
-                help=f"Include only entries with the given {NAME_COLOR + 'names' + Style.RESET_ALL}",
+                help=f"Include only entries with the given\
+                    {NAME_COLOR + 'names' + Style.RESET_ALL}",
             ),
             [
                 update_path_parser,
@@ -1249,7 +1280,8 @@ def main(args=None):
                 "--path",
                 dest="p",
                 nargs="+",
-                help=f"Include only entries with these {PATH_COLOR + 'paths' + Style.RESET_ALL}",
+                help=f"Include only entries with these\
+                    {PATH_COLOR + 'paths' + Style.RESET_ALL}",
             ),
             [
                 update_path_parser,

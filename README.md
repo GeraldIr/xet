@@ -27,7 +27,7 @@ pipx install xet
 xet init
 ```
 - Options:
-   - `-g, --global`: Global Mode. Creates a `.xet` file in the XDG_CONFIG_HOME folder instead of locally. 
+   - `-g, --global`: Global Mode. Creates a `.xet` file in the XDG_CONFIG_HOME folder instead of locally.
 
 Creates an empty `.xet` if it does not already exist.
 
@@ -63,7 +63,7 @@ xet add tag <name> <filepath> <tag> [options]
    - `-w, --wrapper <char>`: Wrap the value with a character (e.g., quotes), also gets stripped in get mode.
    - `-o, --occurences <index or slice>`: Specify which occurrences to modify (string formatted like a list index in python, can be slices).
    - `-e, --end <str>`: Will get appended in the line after value and wrappers, also gets stripped in get mode.
-   - `-p, --preset <str> <str>`: Name and value of preset, option can be repeated to add multiple presets. 
+   - `-p, --preset <str> <str>`: Name and value of preset, option can be repeated to add multiple presets.
    - `-s, --ssh <str>`: Hostname of ssh-host the file is found at, as found in openSSH config file.
    - `-g, --global`: Add the entry to the global `.xet`.
 
@@ -176,4 +176,3 @@ Removes the specified entry from `.xet` file.
    ```sh
    xet remove version
    ```
-

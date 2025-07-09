@@ -1,6 +1,8 @@
-import xet
-import pytest
 import os
+
+import pytest
+
+import xet
 
 
 @pytest.fixture(autouse=True)
