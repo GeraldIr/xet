@@ -1,6 +1,5 @@
 .*
 !.xet
-!.gitignore
 
 **/__pycache__/
 
