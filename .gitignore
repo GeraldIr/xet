@@ -1,6 +1,6 @@
 .*
 !.xet
-
+!.pre-commit-config.yaml
 **/__pycache__
 
 # Development live testing
