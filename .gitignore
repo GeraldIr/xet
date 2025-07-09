@@ -3,7 +3,3 @@
 !.pre-commit-config.yaml
 **/__pycache__
 poetry.lock
-
-# Development live testing
-
-test.txt
