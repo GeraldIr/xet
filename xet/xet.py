@@ -211,7 +211,7 @@ def _set_file_lines(filepath: str = "", ssh: str = None, lines: list = []):
             f.writelines(lines)
 
 
-def _set_tag_value(
+def _set_tag_values(
     filepath: str = "",
     tag: str = "",
     occurences_slice: Union[str, list[int]] = ":",
@@ -248,13 +248,12 @@ def _set_tag_value(
     return old_lines, lines
 
 
-def _get_tag_value(
+def _get_tag_values(
     filepath: str = "",
     tag: str = "",
     occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = None,
     end: str = "",
-    verbosity: int = 0,
     ssh: str = None,
 ):
     found_occurences = []
@@ -269,27 +268,36 @@ def _get_tag_value(
         occurences=found_occurences, filter=occurences_slice
     )
 
-    for occurence_index in filtered_occurences:
-        sanitized_value = _sanitize_value(
-            value=lines[occurence_index].lstrip(tag),
-            wrapper=wrapper,
-            end=end,
+    return [
+        (
+            lines[occurence_index],
+            _sanitize_value(
+                value=lines[occurence_index].lstrip(tag),
+                wrapper=wrapper,
+                end=end,
+            ),
         )
+        for occurence_index in filtered_occurences
+    ]
+
+
+def _print_tag_values(sanitized_values, tag, verbosity):
+    for line, value in sanitized_values:
         if verbosity >= 1:
             print(
                 _color_tag(
                     line=_color_value(
-                        line=lines[occurence_index],
-                        value=sanitized_value,
+                        line=line,
+                        value=value,
                     ),
                     tag=tag,
                 )
             )
         else:
-            print(sanitized_value)
+            print(value)
 
 
-def _set_lc_value(
+def _set_lc_values(
     filepath: str = "",
     line: str = "",
     column: int = 0,
@@ -325,13 +333,12 @@ def _set_lc_value(
     return old_lines, lines
 
 
-def _get_lc_value(
+def _get_lc_values(
     filepath: str = "",
     line: str = "",
     column: int = 0,
     wrapper: str = "",
     end: str = "",
-    verbosity: int = 0,
     ssh: str = None,
 ):
     line -= 1
@@ -339,24 +346,32 @@ def _get_lc_value(
 
     lines = _get_file_lines(filepath=filepath, ssh=ssh)
 
-    sanitized_value = _sanitize_value(
-        value=lines[line][column:],
-        wrapper=wrapper,
-        end=end,
-    )
+    return [
+        (
+            lines[line],
+            _sanitize_value(
+                value=lines[line][column:],
+                wrapper=wrapper,
+                end=end,
+            ),
+        )
+    ]
 
+
+def _print_lc_values(sanitized_value, verbosity):
+    line, value = sanitized_value[0]
     if verbosity >= 1:
         print(
             _color_value(
-                line=lines[line],
-                value=sanitized_value,
+                line=line,
+                value=value,
             )
         )
     else:
-        print(sanitized_value)
+        print(value)
 
 
-def _set_regex_value(
+def _set_regex_values(
     filepath: str = "",
     regex: str = "",
     group: int = 0,
@@ -399,7 +414,7 @@ def _set_regex_value(
     return old_lines, lines
 
 
-def _get_regex_value(
+def _get_regex_values(
     filepath: str = "",
     regex: str = "",
     group: int = 0,
@@ -421,27 +436,35 @@ def _get_regex_value(
         occurences=found_occurences, filter=occurences_slice
     )
 
-    for occurence_index, occurence_match in filtered_occurences:
-        sanitized_value = (
-            _sanitize_value(
-                value=occurence_match.group(group), wrapper=wrapper, end=None
-            )
-            if group
-            else occurence_match.string
-        )
-
-        if verbosity >= 1:
-            print(
-                _color_value(
-                    line=lines[occurence_index],
-                    value=sanitized_value,
+    return [
+        (
+            lines[occurence_index],
+            (
+                _sanitize_value(
+                    value=occurence_match.group(group), wrapper=wrapper, end=None
                 )
+                if group
+                else occurence_match.string
+            ),
+        )
+        for occurence_index, occurence_match in filtered_occurences
+    ]
+
+
+def _print_regex_values(sanitized_value, verbosity):
+    line, value = sanitized_value
+    if verbosity >= 1:
+        print(
+            _color_value(
+                line=line,
+                value=value,
             )
-        else:
-            print(sanitized_value)
+        )
+    else:
+        print(value)
 
 
-def _set_value(entry, value):
+def _set_values(entry, value):
     type, filepath, wrapper, ssh = (
         entry["type"],
         os.path.abspath(entry["filepath"]),
@@ -457,7 +480,7 @@ def _set_value(entry, value):
         tag = entry["tag"]
         occurences = entry["occurences"]
         end = entry["end"]
-        return _set_tag_value(
+        return _set_tag_values(
             filepath=filepath,
             tag=tag,
             occurences_slice=occurences,
@@ -470,7 +493,7 @@ def _set_value(entry, value):
         line = entry["line"]
         column = entry["column"]
         end = entry["end"]
-        return _set_lc_value(
+        return _set_lc_values(
             filepath=filepath,
             line=line,
             column=column,
@@ -483,7 +506,7 @@ def _set_value(entry, value):
         regex = entry["regex"]
         group = entry["group"]
         occurences = entry["occurences"]
-        return _set_regex_value(
+        return _set_regex_values(
             filepath=filepath,
             regex=regex,
             group=group,
@@ -498,13 +521,17 @@ def set_presets(args):
     config = parse_config(preset=args.preset, g=args.g)
 
     for entry in config.values():
-        _set_value(entry=entry, value=entry["presets"][args.preset])
+        _set_values(entry=entry, value=entry["presets"][args.preset])
 
 
 def set_value(args):
     """Set the value associated with a tag in files listed in .xet"""
     config = parse_config(
-        except_flags=args.e, only_flags=args.o, names=args.n, g=args.g
+        except_flags=args.e,
+        only_flags=args.o,
+        names=args.n,
+        path=args.p,
+        g=args.g,
     )
 
     patch = {
@@ -515,7 +542,7 @@ def set_value(args):
             )
         )
         for entry, old_lines, new_lines in [
-            (entry, *_set_value(entry=entry, value=args.value))
+            (entry, *_set_values(entry=entry, value=args.value))
             for entry in config.values()
         ]
     }
@@ -523,17 +550,66 @@ def set_value(args):
     _add_to_history(patch=patch)
 
 
+def _get_values(entry):
+    type, filepath, wrapper, ssh = (
+        entry["type"],
+        os.path.abspath(entry["filepath"]),
+        entry["wrapper"],
+        entry["ssh"],
+    )
+    if not os.path.exists(filepath):
+        print(f"File not found: {filepath}")
+        return
+
+    if type == "tag":
+        tag = entry["tag"]
+        occurences = entry["occurences"]
+        end = entry["end"]
+        return _get_tag_values(
+            filepath=filepath,
+            tag=tag,
+            occurences_slice=occurences,
+            wrapper=wrapper,
+            end=end,
+        )
+
+    elif type == "lc":
+        line = entry["line"]
+        column = entry["column"]
+        end = entry["end"]
+        return _get_lc_values(
+            filepath=filepath,
+            line=line,
+            column=column,
+            wrapper=wrapper,
+            end=end,
+            ssh=ssh,
+        )
+
+    elif type == "regex":
+        regex = entry["regex"]
+        group = entry["group"]
+        occurences = entry["occurences"]
+
+        return _get_regex_values(
+            filepath=filepath,
+            regex=regex,
+            group=group,
+            occurences_slice=occurences,
+            wrapper=wrapper,
+            ssh=ssh,
+        )
+
+
 def get_value(args):
     """Get the value associated with a tag in files listed in .xet"""
     config = parse_config(
-        except_flags=args.e, only_flags=args.o, names=args.n, g=args.g
+        except_flags=args.e, only_flags=args.o, names=args.n, path=args.p, g=args.g
     )
     for name, entry in config.items():
-        type, filepath, wrapper, ssh, verbosity = (
+        type, filepath, verbosity = (
             entry["type"],
             os.path.abspath(entry["filepath"]),
-            entry["wrapper"],
-            entry["ssh"],
             args.verbosity,
         )
         if not os.path.exists(filepath):
@@ -548,50 +624,32 @@ def get_value(args):
             )
         if type == "tag":
             tag = entry["tag"]
-            occurences = entry["occurences"]
-            end = entry["end"]
             if verbosity >= 2:
                 print(f"{IDENTIFIER_COLOR + tag}{SEP_COLOR + ':' + Style.RESET_ALL}")
-            _get_tag_value(
-                filepath=filepath,
+            _print_tag_values(
+                _get_values(entry=entry),
                 tag=tag,
-                occurences_slice=occurences,
-                wrapper=wrapper,
-                end=end,
                 verbosity=verbosity,
             )
         elif type == "lc":
             line = entry["line"]
             column = entry["column"]
-            end = entry["end"]
             if verbosity >= 2:
                 print(
                     f"{IDENTIFIER_COLOR + line}{SEP_COLOR + ':'}\
                     {IDENTIFIER_COLOR + column}{SEP_COLOR + ':' + Style.RESET_ALL}"
                 )
-            _get_lc_value(
-                filepath=filepath,
-                line=line,
-                column=column,
-                wrapper=wrapper,
-                end=end,
+            _print_lc_values(
+                _get_values(entry=entry),
                 verbosity=verbosity,
-                ssh=ssh,
             )
         elif type == "regex":
             regex = entry["regex"]
-            group = entry["group"]
-            occurences = entry["occurences"]
             if verbosity >= 2:
                 print(f"{IDENTIFIER_COLOR + regex}{SEP_COLOR + ':' + Style.RESET_ALL}")
-            _get_regex_value(
-                filepath=filepath,
-                regex=regex,
-                group=group,
-                occurences_slice=occurences,
-                wrapper=wrapper,
+            _print_regex_values(
+                _get_values(entry=entry),
                 verbosity=verbosity,
-                ssh=ssh,
             )
 
 
@@ -822,7 +880,36 @@ def redo(args):
 
 
 def snapshot(args):
-    ...
+    if args.split:
+        print("Split mode is not implemented yet.")
+    elif args.first:
+        print("First mode is not implemented yet.")
+        return
+
+    config = parse_config(
+        except_flags=args.e,
+        only_flags=args.o,
+        names=args.n,
+        path=args.p,
+        g=args.g,
+    )
+
+    for name, entry in config.items():
+        values = [value for _, value in _get_values(entry=entry)]
+
+        if len(set(values)) != 1:
+            print(
+                f"Cannot snapshot entry {name},\
+                divergent occurence values detected.\
+                Use --split or --first."
+            )
+        if not entry["presets"]:
+            entry["presets"] = {}
+
+        entry["presets"][args.preset] = values[0]
+
+    with open(get_abs_config_path(g=args.g), mode="w") as f:
+        json.dump(config, f, indent=4)
 
 
 def main(args=None):
@@ -1151,15 +1238,6 @@ def main(args=None):
         "name", help=f"{NAME_COLOR + 'Name' + Style.RESET_ALL} of the entry to remove"
     )
 
-    remove_parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="verbosity",
-        help="Enable verbose output",
-        action="count",
-        default=0,
-    )
-
     """
     PRESET PARSER
     """
@@ -1170,13 +1248,9 @@ def main(args=None):
     preset_parser.set_defaults(func=set_presets)
     preset_parser.add_argument("preset", help="Name of the preset")
 
-    preset_parser.add_argument(
-        "--global",
-        "-g",
-        dest="g",
-        action="store_true",
-        help="Use the global config",
-    )
+    """
+    SNAPSHOT PARSER
+    """
 
     snapshot_parser = subparsers.add_parser(
         "snapshot",
@@ -1185,14 +1259,10 @@ def main(args=None):
     )
 
     snapshot_parser.set_defaults(func=snapshot)
+    snapshot_parser.add_argument("preset", help="Name of the snapshot preset")
 
-    snapshot_parser.add_argument(
-        "--global",
-        "-g",
-        dest="g",
-        action="store_true",
-        help="Use the global config",
-    )
+    snapshot_parser.add_argument("--split", action="store_true", dest="split")
+    snapshot_parser.add_argument("--first", action="store_true", dest="first")
 
     """UNDO/REDO PARSERS"""
 
@@ -1231,6 +1301,7 @@ def main(args=None):
                 get_parser,
                 set_parser,
                 show_parser,
+                snapshot_parser,
             ],
         )
     )
@@ -1250,6 +1321,7 @@ def main(args=None):
                 get_parser,
                 set_parser,
                 show_parser,
+                snapshot_parser,
             ],
         )
     )
@@ -1270,6 +1342,7 @@ def main(args=None):
                 get_parser,
                 set_parser,
                 show_parser,
+                snapshot_parser,
             ],
         )
     )
@@ -1289,6 +1362,7 @@ def main(args=None):
                 get_parser,
                 set_parser,
                 show_parser,
+                snapshot_parser,
             ],
         )
     )
@@ -1310,6 +1384,8 @@ def main(args=None):
                 edit_parser,
                 init_parser,
                 remove_parser,
+                preset_parser,
+                snapshot_parser,
             ],
         )
     )
