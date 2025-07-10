@@ -4,3 +4,6 @@ TEST3: 'ghi'
 TEST4, __jkl__
 TEST5: mno
 TEST5: pqr
+.........7:16: sTu
+vwx 8:1
+rege_xyz_

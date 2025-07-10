@@ -103,7 +103,7 @@ def test_add():
     )
 
 
-def test_get(capsys):
+def test_get_tag(capsys):
     xet.main(["add", "tag", "test_1", "./data/test.txt", "TEST1 = "])
     xet.main(["add", "tag", "test_2", "data/test.txt", "TEST2 = ", "-w", '"'])
     xet.main(["add", "tag", "test_3", "data/test.txt", "TEST3: ", "-w", "'"])
@@ -115,3 +115,11 @@ def test_get(capsys):
     output = capsys.readouterr().out.rstrip()
 
     assert output == "ABC\nDEF\nghi\njkl\nmno\npqr"
+
+
+def test_get_lc(capsys):
+    ...
+
+
+def test_get_regex(capsys):
+    ...
