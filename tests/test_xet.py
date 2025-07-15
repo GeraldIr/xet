@@ -105,7 +105,7 @@ def test_add():
 
 def test_get_tag(capsys):
     xet.main(["add", "tag", "test_1", "./data/test.txt", "TEST1 = "])
-    xet.main(["add", "tag", "test_2", "data/test.txt", "TEST2 = ", "-w", '"'])
+    xet.main(["add", "tag", "test_2", "./data/test.txt", "TEST2 = ", "-w", '"'])
     xet.main(["add", "tag", "test_3", "data/test.txt", "TEST3: ", "-w", "'"])
     xet.main(["add", "tag", "test_4", "data/test.txt", "TEST4, ", "-w", "__"])
     xet.main(["add", "tag", "test_5", "data/test.txt", "TEST5: "])
@@ -118,8 +118,83 @@ def test_get_tag(capsys):
 
 
 def test_get_lc(capsys):
-    ...
+    xet.main(["add", "lc", "test_6", "./data/test.txt", "7", "16"])
+    xet.main(["add", "lc", "test_7", "./data/test.txt", "8", "1", "-e", " 8:1 TEST7"])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "sTu\nvwx"
 
 
 def test_get_regex(capsys):
-    ...
+    xet.main(
+        [
+            "add",
+            "regex",
+            "test_8",
+            "./data/test.txt",
+            r"^\w* rege",
+            "--wrapper",
+            "_",
+            "--occurences",
+            "0",
+        ]
+    )
+    xet.main(
+        [
+            "add",
+            "regex",
+            "test_9",
+            "./data/test.txt",
+            r"^\w* rege",
+            "--occurences",
+            "1",
+        ]
+    )
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "xyz\nxyz"
+
+
+def test_get_occurences(capsys):
+    xet.main(
+        [
+            "add",
+            "regex",
+            "test_occ",
+            "./data/test.txt",
+            r"^TEST\d",
+            "--occurences",
+            "1:3",
+        ]
+    )
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == " = \"DEF\"\n: 'ghi'"
+
+    xet.main(
+        [
+            "add",
+            "regex",
+            "test_occ",
+            "./data/test.txt",
+            r"^TEST\d",
+            "--occurences",
+            "1",
+            "2",
+        ]
+    )
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == " = \"DEF\"\n: 'ghi'"

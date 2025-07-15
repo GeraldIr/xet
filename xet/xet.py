@@ -177,8 +177,17 @@ def _filter_occurences(occurences: list, filter: str = ":"):
     if isinstance(filter, str):
         filtered_occurences = occurences[_parse_index_or_slice(filter)]
     elif isinstance(filter, list):
-        filtered_occurences = [o for i, o in enumerate(occurences) if i in occurences]
-    return filtered_occurences
+        if len(filter) == 1:
+            filtered_occurences = occurences[_parse_index_or_slice(filter[0])]
+        else:
+            filtered_occurences = [
+                o for i, o in enumerate(occurences) if str(i) in filter
+            ]
+    return (
+        filtered_occurences
+        if isinstance(filtered_occurences, list)
+        else [filtered_occurences]
+    )
 
 
 def _get_file_lines(filepath: str = "", ssh: str = None):
@@ -420,7 +429,6 @@ def _get_regex_values(
     group: int = 0,
     occurences_slice: Union[str, list[int]] = ":",
     wrapper: str = "",
-    verbosity: int = 0,
     ssh: str = None,
 ):
     lines = _get_file_lines(filepath=filepath, ssh=ssh)
@@ -440,11 +448,12 @@ def _get_regex_values(
         (
             lines[occurence_index],
             (
-                _sanitize_value(
-                    value=occurence_match.group(group), wrapper=wrapper, end=None
-                )
+                _sanitize_value(value=occurence_match.group(group), wrapper=wrapper)
                 if group
-                else occurence_match.string
+                else _sanitize_value(
+                    value=occurence_match.string[occurence_match.regs[0][1] :],
+                    wrapper=wrapper,
+                )
             ),
         )
         for occurence_index, occurence_match in filtered_occurences
@@ -452,16 +461,16 @@ def _get_regex_values(
 
 
 def _print_regex_values(sanitized_value, verbosity):
-    line, value = sanitized_value
-    if verbosity >= 1:
-        print(
-            _color_value(
-                line=line,
-                value=value,
+    for line, value in sanitized_value:
+        if verbosity >= 1:
+            print(
+                _color_value(
+                    line=line,
+                    value=value,
+                )
             )
-        )
-    else:
-        print(value)
+        else:
+            print(value)
 
 
 def _set_values(entry, value):
@@ -1174,11 +1183,10 @@ def main(args=None):
         "-c",
         dest="group",
         nargs=1,
-        help=f"The group number which should be interpreted as the\
+        help=f"The group number of the\
                 {VALUE_COLOR + 'value' + Style.RESET_ALL}.\
                 0 means the entire match is interpreted as the\
-                {VALUE_COLOR + 'value'}. Everything but the\
-                {VALUE_COLOR + 'value' + Style.RESET_ALL} itself is preserved",
+                {VALUE_COLOR + 'value' + Style.RESET_ALL}.",
     )
 
     """

@@ -5,7 +5,8 @@
         "flags": null,
         "wrapper": "\"",
         "presets": {
-            "defaulttest": "1.2.0"
+            "defaulttest": "1.2.0",
+            "default": "1.2.0"
         },
         "ssh": null,
         "tag": "version = ",
@@ -18,7 +19,8 @@
         "flags": null,
         "wrapper": "\"",
         "presets": {
-            "defaulttest": "1.2.0"
+            "defaulttest": "1.2.0",
+            "default": "1.2.0"
         },
         "ssh": null,
         "tag": "VERSION = ",

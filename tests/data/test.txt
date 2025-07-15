@@ -4,6 +4,7 @@ TEST3: 'ghi'
 TEST4, __jkl__
 TEST5: mno
 TEST5: pqr
-.........7:16: sTu
-vwx 8:1
-rege_xyz_
+TEST6....7:16: sTu
+vwx 8:1 TEST7
+TEST8 rege_xyz_
+TEST9 regexyz
