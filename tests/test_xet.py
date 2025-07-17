@@ -14,6 +14,8 @@ def change_test_dir(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def delete_dot_xet():
+    if os.path.exists(os.path.join(os.path.abspath(os.getcwd()), xet.CONFIG_FILE)):
+        os.remove(os.path.join(os.path.abspath(os.getcwd()), xet.CONFIG_FILE))
     yield
     if os.path.exists(os.path.join(os.path.abspath(os.getcwd()), xet.CONFIG_FILE)):
         os.remove(os.path.join(os.path.abspath(os.getcwd()), xet.CONFIG_FILE))
@@ -29,6 +31,8 @@ def init_dot_xet(request):
 @pytest.fixture(autouse=True)
 def data_path():
     test_path = os.path.abspath("tmp")
+    if os.path.exists(test_path):
+        shutil.rmtree(test_path)
     backup_path = os.path.abspath("data")
     shutil.copytree(backup_path, test_path)
     yield Path(test_path)
@@ -180,6 +184,47 @@ def test_get_tag(capsys, data_path):
 
     assert output == "ABC\nDEF\nghi\njkl\nmno\npqr"
 
+    xet.main(["get", "-v"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == (
+        "\x1b[34mTEST1 = \x1b[0m\x1b[31mABC\x1b[0m\n"
+        '\x1b[34mTEST2 = \x1b[0m"\x1b[31mDEF\x1b[0m"\n'
+        "\x1b[34mTEST3: \x1b[0m'\x1b[31mghi\x1b[0m'\n"
+        "\x1b[34mTEST4, \x1b[0m__\x1b[31mjkl\x1b[0m__\n"
+        "\x1b[34mTEST5: \x1b[0m\x1b[31mmno\x1b[0m\n"
+        "\x1b[34mTEST5: \x1b[0m\x1b[31mpqr\x1b[0m"
+    )
+
+    xet.main(["get", "-vv"])
+
+    output = capsys.readouterr().out.rstrip()
+    filepath = os.path.abspath(data_path / "test.txt")
+    assert output == (
+        f"\x1b[32mtest_1\x1b[36m:\x1b[35m"
+        f"{filepath}"
+        f"\x1b[36m:\x1b[34mTEST1 = \x1b[36m:\x1b[0m\n"
+        f"\x1b[34mTEST1 = \x1b[0m\x1b[31mABC\x1b[0m\n"
+        f"\x1b[32mtest_2\x1b[36m:\x1b[35m"
+        f"{filepath}"
+        f"\x1b[36m:\x1b[34mTEST2 = \x1b[36m:\x1b[0m\n"
+        f'\x1b[34mTEST2 = \x1b[0m"\x1b[31mDEF\x1b[0m"\n'
+        f"\x1b[32mtest_3\x1b[36m:\x1b[35m"
+        f"{filepath}"
+        f"\x1b[36m:\x1b[34mTEST3: \x1b[36m:\x1b[0m\n"
+        f"\x1b[34mTEST3: \x1b[0m'\x1b[31mghi\x1b[0m'\n"
+        f"\x1b[32mtest_4\x1b[36m:\x1b[35m"
+        f"{filepath}"
+        f"\x1b[36m:\x1b[34mTEST4, \x1b[36m:\x1b[0m\n"
+        f"\x1b[34mTEST4, \x1b[0m__\x1b[31mjkl\x1b[0m__\n"
+        f"\x1b[32mtest_5\x1b[36m:\x1b[35m"
+        f"{filepath}"
+        f"\x1b[36m:\x1b[34mTEST5: \x1b[36m:\x1b[0m\n"
+        f"\x1b[34mTEST5: \x1b[0m\x1b[31mmno\x1b[0m\n"
+        f"\x1b[34mTEST5: \x1b[0m\x1b[31mpqr\x1b[0m"
+    )
+
 
 def test_get_lc(capsys, data_path):
     xet.main(
@@ -231,11 +276,31 @@ def test_get_regex(capsys, data_path):
         ]
     )
 
-    xet.main(["get"])
+    xet.main(
+        [
+            "add",
+            "regex",
+            "test_10",
+            os.path.abspath(data_path / "test.txt"),
+            r"(^\w* rege)(_)(\w*)(_)",
+            "-c",
+            "3",
+            "-f",
+            "group",
+        ]
+    )
+
+    xet.main(["get", "-e", "group"])
 
     output = capsys.readouterr().out.rstrip()
 
     assert output == "xyz\nxyz"
+
+    xet.main(["get", "-o", "group"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "xyz"
 
 
 def test_get_occurences(capsys, data_path):
@@ -407,7 +472,7 @@ def test_set_tag(capsys, data_path):
     assert output == "TEST\nTEST\nTEST\nTEST"
 
 
-def test_equality(capsys, data_path):
+def test_tag_equality(capsys, data_path):
     xet.main(
         [
             "add",
@@ -423,3 +488,93 @@ def test_equality(capsys, data_path):
     output = capsys.readouterr().out.rstrip()
 
     assert output == "TEST_EQUALITY"
+
+
+def test_set_lc(capsys, data_path):
+    xet.main(
+        ["add", "lc", "test_6", os.path.abspath(data_path / "test.txt"), "7", "16"]
+    )
+    xet.main(
+        [
+            "add",
+            "lc",
+            "test_7",
+            os.path.abspath(data_path / "test.txt"),
+            "8",
+            "1",
+            "-e",
+            " 8:1 TEST7",
+        ]
+    )
+
+    xet.main(["set", "TEST"])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "TEST\nTEST"
+
+
+def test_set_regex(capsys, data_path):
+    xet.main(
+        [
+            "add",
+            "regex",
+            "test_8",
+            os.path.abspath(data_path / "test.txt"),
+            r"^\w* rege",
+            "--wrapper",
+            "_",
+            "--occurences",
+            "0",
+        ]
+    )
+    xet.main(
+        [
+            "add",
+            "regex",
+            "test_9",
+            os.path.abspath(data_path / "test.txt"),
+            r"^\w* rege",
+            "--occurences",
+            "1",
+        ]
+    )
+    xet.main(
+        [
+            "add",
+            "regex",
+            "test_10",
+            os.path.abspath(data_path / "test.txt"),
+            r"(^\w* rege)(_)(\w*)(_)",
+            "-c",
+            "3",
+            "-f",
+            "group",
+        ]
+    )
+
+    xet.main(["set", "TEST", "-e", "group"])
+
+    xet.main(["get", "-e", "group"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "TEST\nTEST"
+
+    xet.main(["set", "xyz", "-e", "group"])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "xyz\nxyz\nxyz"
+
+    xet.main(["set", "TEST", "-o", "group"])
+
+    xet.main(["get", "-o", "group"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "TEST"

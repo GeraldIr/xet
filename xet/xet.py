@@ -157,7 +157,7 @@ def _sanitize_value(
     wrapper: str = None,
     end: str = None,
 ):
-    value = value if not end else value.rstrip(end)
+    value = value if not end else value[: value.rfind(end)]
     return value if not wrapper else value.lstrip(wrapper).split(wrapper)[0]
 
 
@@ -409,10 +409,11 @@ def _set_regex_values(
 
     for occurence_index, occurence_match in filtered_occurences:
         if not group:
-            lines[
-                occurence_index
-            ] = f"{occurence_match.string}{wrapper if wrapper is not None else ''}\
-                    {value}{wrapper if wrapper is not None else ''}"
+            lines[occurence_index] = (
+                f"{occurence_match.string[ : occurence_match.regs[0][1]]}"
+                f"{wrapper if wrapper is not None else ''}"
+                f"{value}{wrapper if wrapper is not None else ''}"
+            )
         else:
             start = lines[occurence_index][0 : occurence_match.start(group)]
             end = lines[occurence_index][occurence_match.end(group) :]
@@ -630,8 +631,10 @@ def get_value(args):
 
         if verbosity >= 2:
             print(
-                f"{NAME_COLOR + name}{SEP_COLOR + ':'}\
-                {PATH_COLOR + filepath}{SEP_COLOR + ':'}",
+                (
+                    f"{NAME_COLOR + name}{SEP_COLOR + ':'}"
+                    f"{PATH_COLOR + filepath}{SEP_COLOR + ':'}"
+                ),
                 end="",
             )
         if type == "tag":
