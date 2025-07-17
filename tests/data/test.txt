@@ -8,3 +8,5 @@ TEST6....7:16: sTu
 vwx 8:1 TEST7
 TEST8 rege_xyz_
 TEST9 regexyz
+
+TEST_EQUALITYTEST_EQUALITY

@@ -4,10 +4,7 @@
         "filepath": "pyproject.toml",
         "flags": null,
         "wrapper": "\"",
-        "presets": {
-            "defaulttest": "1.2.0",
-            "default": "1.2.0"
-        },
+        "presets": null,
         "ssh": null,
         "tag": "version = ",
         "occurences": ":",
@@ -18,10 +15,7 @@
         "filepath": "xet/xet.py",
         "flags": null,
         "wrapper": "\"",
-        "presets": {
-            "defaulttest": "1.2.0",
-            "default": "1.2.0"
-        },
+        "presets": null,
         "ssh": null,
         "tag": "VERSION = ",
         "occurences": ":",

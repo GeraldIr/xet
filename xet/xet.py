@@ -108,9 +108,9 @@ def filter_config(
     for key, entry in config.items():
         flags = entry["flags"] if (entry and "flags" in entry) else None
         if flags:
-            if except_flags and not any([flag in except_flags for flag in flags]):
+            if except_flags and any([flag in flags for flag in except_flags]):
                 continue
-            if only_flags and any([flag in only_flags for flag in flags]):
+            if only_flags and not any([flag in flags for flag in only_flags]):
                 continue
         elif only_flags:
             continue
@@ -169,7 +169,7 @@ def _color_value(
 
 
 def _color_tag(line: str = "", tag: str = ""):
-    return IDENTIFIER_COLOR + tag + Style.RESET_ALL + line.lstrip(tag)
+    return IDENTIFIER_COLOR + tag + Style.RESET_ALL + re.sub(tag, "", line, count=1)
 
 
 def _filter_occurences(occurences: list, filter: str = ":"):
@@ -245,12 +245,15 @@ def _set_tag_values(
 
     for occurence_index in filtered_occurences:
         if wrapper:
-            after_wrapper = lines[occurence_index].lstrip(tag).split(wrapper)[2]
+            after_wrapper = re.sub(tag, "", lines[occurence_index], count=1).split(
+                wrapper
+            )[2]
+            re.sub(tag, "", lines[occurence_index], count=1)
             end = after_wrapper + end
-        lines[
-            occurence_index
-        ] = f"{tag}{wrapper if wrapper is not None else ''}\
-            {value}{wrapper if wrapper is not None else ''}{end}"
+        lines[occurence_index] = (
+            f"{tag}{wrapper if wrapper is not None else ''}{value}"
+            f"{wrapper if wrapper is not None else ''}{end}"
+        )
 
     _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
 
@@ -281,7 +284,7 @@ def _get_tag_values(
         (
             lines[occurence_index],
             _sanitize_value(
-                value=lines[occurence_index].lstrip(tag),
+                value=re.sub(tag, "", lines[occurence_index], count=1),
                 wrapper=wrapper,
                 end=end,
             ),
@@ -332,10 +335,10 @@ def _set_lc_values(
         after_wrapper = lines[line][:column].split(wrapper)[2]
         end = after_wrapper + end
 
-    lines[
-        line
-    ] = f"{lines[line][:column]}{wrapper if wrapper is not None else ''}\
-        {value}{wrapper if wrapper is not None else ''}{end}"
+    lines[line] = (
+        f"{lines[line][:column]}{wrapper if wrapper is not None else ''}{value}"
+        f"{wrapper if wrapper is not None else ''}{end}"
+    )
 
     _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
 
@@ -409,14 +412,14 @@ def _set_regex_values(
             lines[
                 occurence_index
             ] = f"{occurence_match.string}{wrapper if wrapper is not None else ''}\
-                {value}{wrapper if wrapper is not None else ''}"
+                    {value}{wrapper if wrapper is not None else ''}"
         else:
             start = lines[occurence_index][0 : occurence_match.start(group)]
             end = lines[occurence_index][occurence_match.end(group) :]
-            lines[
-                occurence_index
-            ] = f"{start}{wrapper if wrapper is not None else ''}\
-                {value}{wrapper if wrapper is not None else ''}{end}"
+            lines[occurence_index] = (
+                f"{start}{wrapper if wrapper is not None else ''}"
+                f"{value}{wrapper if wrapper is not None else ''}{end}"
+            )
 
     _set_file_lines(filepath=filepath, ssh=ssh, lines=lines)
 
@@ -667,6 +670,8 @@ def add_entry(args):
 
     config = parse_config(g=args.g)
 
+    old_config = deepcopy(config)
+
     config[args.name] = {
         "type": args.subcommand,
         "filepath": args.filepath,
@@ -694,6 +699,17 @@ def add_entry(args):
             "group": int(args.group[0]) if args.group else None,
             "occurences": args.occurences if args.occurences else ":",
         }
+
+    patch = {
+        get_abs_config_path(): DMP.patch_toText(
+            DMP.patch_make(
+                a=NL.join(config),
+                b=DMP.diff_main(NL.join(config), NL.join(old_config)),
+            )
+        )
+    }
+
+    _add_to_history(patch=[patch])
 
     with open(get_abs_config_path(g=args.g), mode="w") as f:
         json.dump(config, f, indent=4)
