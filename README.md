@@ -1,5 +1,6 @@
 [![build](https://github.com/GeraldIr/xet/actions/workflows/python-publish.yml/badge.svg)](https://github.com/GeraldIr/xet/actions/workflows/python-publish.yml)
 ![version](https://img.shields.io/pypi/v/xet)
+[![codecov](https://codecov.io/gh/GeraldIr/xet/graph/badge.svg?token=7NZVXLXIB9)](https://codecov.io/gh/GeraldIr/xet)
 
 # xet CLI Usage Guide
 
