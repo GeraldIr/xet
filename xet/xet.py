@@ -39,7 +39,7 @@ def _get_config_path(g=False, init=False):
         return CONFIG_FILE
 
 
-def _get_history_path():
+def get_history_path():
     xdg_config = os.environ.get("XDG_CONFIG_HOME")
     if xdg_config:
         return os.path.join(xdg_config, HISTORY_FILE)
@@ -712,7 +712,7 @@ def add_entry(args):
         )
     }
 
-    _add_to_history(patch=[patch])
+    _add_to_history(patch=patch)
 
     with open(get_abs_config_path(g=args.g), mode="w") as f:
         json.dump(config, f, indent=4)
@@ -721,8 +721,24 @@ def add_entry(args):
 def _update_name(args):
     config = parse_config(g=args.g)
 
-    config[args.updatedName] = config[args.name]
-    config.pop(args.name)
+    filtered_keys = filter_config(
+        except_flags=args.e, only_flags=args.o, names=args.n, path=args.p, g=args.g
+    )
+
+    if len(filtered_keys) != 1:
+        print("Filter parameters returned more than one entry for name change")
+
+    if args.updateValue in config:
+        print(
+            f"Key {IDENTIFIER_COLOR + args.updateValue + Style.RESET_ALL}"
+            "already present in .xet"
+        )
+        return config
+
+    oldKey = next(iter(filtered_keys))
+
+    config[args.updateValue] = config[oldKey]
+    config.pop(oldKey)
 
     return config
 
@@ -749,6 +765,9 @@ def _update_property(args, property: str = None, updatedValue: str = ""):
     )
 
     for entry in filtered_keys:
+        if property not in config[entry]:
+            print(f"Entry: {entry} does not have property {property}")
+            continue
         config[entry][property] = updatedValue
 
     return config
@@ -756,16 +775,13 @@ def _update_property(args, property: str = None, updatedValue: str = ""):
 
 def update_entry(args):
     """Update entries in the .xet"""
-
-    if args.subcommand == "name":
+    if args.updateKey == "type":
+        print("Type cannot be updated, create a new entry")
+    elif args.updateKey == "name":
         config = _update_name(args=args)
-    elif args.subcommand == "path":
+    else:
         config = _update_property(
-            args=args, property="filepath", updatedValue=args.updatedPath
-        )
-    elif args.subcommand == "wrapper":
-        config = _update_property(
-            args=args, property="wrapper", updatedValue=args.updatedWrapper
+            args=args, property=args.updateKey, updatedValue=args.updateValue
         )
 
     with open(get_abs_config_path(g=args.g), mode="w") as f:
@@ -814,15 +830,16 @@ def show_config(args):
 
 def _init_history():
     history = {"past": [], "future": []}
-    with open(_get_history_path(), mode="w") as f:
+
+    with open(get_history_path(), mode="w") as f:
         json.dump(history, f, indent=4)
 
 
 def _load_history():
-    if not os.path.exists(_get_history_path()):
+    if not os.path.exists(get_history_path()):
         _init_history()
 
-    with open(_get_history_path()) as f:
+    with open(get_history_path()) as f:
         history: dict = json.load(f)
 
     return history
@@ -835,7 +852,7 @@ def _add_to_history(patch: list):
 
     history["future"] = []
 
-    with open(_get_history_path(), mode="w") as f:
+    with open(get_history_path(), mode="w") as f:
         json.dump(history, f, indent=4)
 
 
@@ -871,7 +888,7 @@ def undo(args):
 
     history["future"].append(to_future)
 
-    with open(_get_history_path(), mode="w") as f:
+    with open(get_history_path(), mode="w") as f:
         json.dump(history, f, indent=4)
 
 
@@ -903,7 +920,7 @@ def redo(args):
 
     history["past"].insert(0, to_past)
 
-    with open(_get_history_path(), mode="w") as f:
+    with open(get_history_path(), mode="w") as f:
         json.dump(history, f, indent=4)
 
 
@@ -1214,46 +1231,21 @@ def main(args=None):
 
     update_parser = subparsers.add_parser("update", help="Update entries in the .xet")
 
-    update_sub_parser = update_parser.add_subparsers(dest="subcommand")
-
-    update_name_parser = update_sub_parser.add_parser(
-        "name", help=f"Update the {NAME_COLOR + 'name'} of an entry"
+    update_parser.add_argument(
+        "updateKey",
+        help=(
+            "The key to be updated in the chosen entries"
+            f"('{NAME_COLOR + 'name' + Style.RESET_ALL}' changes the key of the entry)"
+        ),
     )
 
-    update_path_parser = update_sub_parser.add_parser(
-        "path", help=f"Update the {PATH_COLOR + 'path'} of entries"
+    update_parser.add_argument(
+        "updateValue", help="The new value of the given key for the chosen entries"
     )
 
-    update_wrapper_parser = update_sub_parser.add_parser(
-        "wrapper", help="Update the wrapper of entries"
-    )
-
-    update_sub_parsers = [update_name_parser, update_path_parser, update_wrapper_parser]
-
-    list(map(lambda sub: sub.set_defaults(func=update_entry), update_sub_parsers))
+    update_parser.set_defaults(func=update_entry)
 
     # unique positional arguments
-
-    # name parser
-    update_name_parser.add_argument(
-        "name", help=f"The {NAME_COLOR + 'name'} of the entry to be updated"
-    )
-    update_name_parser.add_argument(
-        "updatedName",
-        help=f"The updated {NAME_COLOR + 'name'} of the entry",
-    )
-
-    # path parser
-
-    update_path_parser.add_argument(
-        "updatedPath", help=f"The updated {PATH_COLOR + 'path'} of the entries"
-    )
-
-    # wrapper parser
-
-    update_wrapper_parser.add_argument(
-        "updatedWrapper", help="The updated wrapper of the entries"
-    )
 
     """
     REMOVE PARSER
@@ -1323,8 +1315,7 @@ def main(args=None):
                 help="Include only entries with these flags",
             ),
             [
-                update_path_parser,
-                update_wrapper_parser,
+                update_parser,
                 get_parser,
                 set_parser,
                 show_parser,
@@ -1343,8 +1334,7 @@ def main(args=None):
                 help="Exclude entries with these flags",
             ),
             [
-                update_path_parser,
-                update_wrapper_parser,
+                update_parser,
                 get_parser,
                 set_parser,
                 show_parser,
@@ -1364,8 +1354,7 @@ def main(args=None):
                     {NAME_COLOR + 'names' + Style.RESET_ALL}",
             ),
             [
-                update_path_parser,
-                update_wrapper_parser,
+                update_parser,
                 get_parser,
                 set_parser,
                 show_parser,
@@ -1384,8 +1373,7 @@ def main(args=None):
                     {PATH_COLOR + 'paths' + Style.RESET_ALL}",
             ),
             [
-                update_path_parser,
-                update_wrapper_parser,
+                update_parser,
                 get_parser,
                 set_parser,
                 show_parser,
@@ -1404,7 +1392,7 @@ def main(args=None):
                 help="Use the global .xet",
             ),
             [
-                *update_sub_parsers,
+                update_parser,
                 get_parser,
                 set_parser,
                 show_parser,

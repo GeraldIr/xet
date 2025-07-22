@@ -1,10 +1,17 @@
 import os
 import shutil
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 import xet
+
+patcher = patch(
+    "xet.xet.get_history_path",
+    lambda: os.path.join(os.path.abspath(os.getcwd()), "tmp", xet.HISTORY_FILE),
+)
+patcher.start()
 
 
 @pytest.fixture(autouse=True)
@@ -249,6 +256,14 @@ def test_get_lc(capsys, data_path):
 
     assert output == "sTu\nvwx"
 
+    xet.main(["get", "-v"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == (
+        "TEST6....7:16: \x1b[31msTu\x1b[0m" "\n\x1b[31mvwx\x1b[0m 8:1 TEST7"
+    )
+
 
 def test_get_regex(capsys, data_path):
     xet.main(
@@ -301,6 +316,12 @@ def test_get_regex(capsys, data_path):
     output = capsys.readouterr().out.rstrip()
 
     assert output == "xyz"
+
+    xet.main(["get", "-e", "group", "-v"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == ("TEST8 rege_\x1b[31mxyz\x1b[0m_" "\nTEST9 rege\x1b[31mxyz\x1b[0m")
 
 
 def test_get_occurences(capsys, data_path):
@@ -578,3 +599,149 @@ def test_set_regex(capsys, data_path):
     output = capsys.readouterr().out.rstrip()
 
     assert output == "TEST"
+
+
+def test_preset_snapshot(capsys, data_path):
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_1",
+            os.path.abspath(data_path / "test.txt"),
+            "TEST1 = ",
+            "-p",
+            "pre1",
+            "test",
+        ]
+    )
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_2",
+            os.path.abspath(data_path / "test.txt"),
+            "TEST2 = ",
+            "-w",
+            '"',
+            "-p",
+            "pre1",
+            "test",
+        ]
+    )
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_3",
+            os.path.abspath(data_path / "test.txt"),
+            "TEST3: ",
+            "-w",
+            "'",
+            "-p",
+            "pre1",
+            "test",
+        ]
+    )
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_4",
+            os.path.abspath(data_path / "test.txt"),
+            "TEST4, ",
+            "-w",
+            "__",
+            "-p",
+            "pre1",
+            "test",
+        ]
+    )
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_5",
+            os.path.abspath(data_path / "test.txt"),
+            "TEST5: ",
+            "-o",
+            "0",
+            "-p",
+            "pre1",
+            "test",
+        ]
+    )
+
+    xet.main(["snapshot", "pre2"])
+
+    xet.main(["preset", "pre1"])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "test\ntest\ntest\ntest\ntest"
+
+    xet.main(["preset", "pre2"])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "ABC\nDEF\nghi\njkl\nmno"
+
+
+def test_history(capsys, data_path):
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_1",
+            os.path.abspath(data_path / "test.txt"),
+            "TEST1 = ",
+        ]
+    )
+
+    xet.main(["set", "TEST"])
+    xet.main(["undo"])
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "ABC"
+
+    xet.main(["redo"])
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "TEST"
+
+
+def test_update(capsys, data_path):
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_1",
+            os.path.abspath(data_path / "test.txt"),
+            "TEST1 = ",
+        ]
+    )
+
+    xet.main(["update", "tag", "TEST2 = "])
+
+    xet.main(["update", "wrapper", '"'])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "DEF"
+
+    xet.main(["update", "name", "renamed_test"])
+
+    xet.main(["get", "-n", "renamed_test"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "DEF"
