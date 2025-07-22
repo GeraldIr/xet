@@ -3,7 +3,6 @@ import json
 import os
 import re
 import subprocess
-import sys
 from copy import deepcopy
 from typing import Union
 
@@ -75,7 +74,7 @@ def filter_config(
 
     if not os.path.exists(config_path):
         print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
-        sys.exit(1)
+        return
     with open(config_path) as f:
         config: dict = json.load(f)
 
@@ -127,7 +126,7 @@ def parse_config(
 
     if not os.path.exists(config_path):
         print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
-        sys.exit(1)
+        return
     with open(config_path) as f:
         config: dict = json.load(f)
 
@@ -141,6 +140,16 @@ def parse_config(
     )
 
     return {k: v for k, v in config.items() if k in filtered_keys}
+
+
+def load_config(g=False):
+    config_path = get_abs_config_path(g=g)
+
+    if not os.path.exists(config_path):
+        print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
+        return
+    with open(config_path) as f:
+        return f.readlines()
 
 
 def _parse_index_or_slice(s):
@@ -533,8 +542,23 @@ def _set_values(entry, value):
 def set_presets(args):
     config = parse_config(preset=args.preset, g=args.g)
 
-    for entry in config.values():
-        _set_values(entry=entry, value=entry["presets"][args.preset])
+    patch = [
+        (
+            os.path.abspath(entry["filepath"]),
+            DMP.patch_toText(
+                DMP.patch_make(
+                    a=NL.join(new_lines),
+                    b=DMP.diff_main(NL.join(new_lines), NL.join(old_lines)),
+                )
+            ),
+        )
+        for entry, old_lines, new_lines in [
+            (entry, *_set_values(entry=entry, value=entry["presets"][args.preset]))
+            for entry in config.values()
+        ]
+    ]
+
+    _add_to_history(patch=patch)
 
 
 def set_value(args):
@@ -547,18 +571,21 @@ def set_value(args):
         g=args.g,
     )
 
-    patch = {
-        os.path.abspath(entry["filepath"]): DMP.patch_toText(
-            DMP.patch_make(
-                a=NL.join(new_lines),
-                b=DMP.diff_main(NL.join(new_lines), NL.join(old_lines)),
-            )
+    patch = [
+        (
+            os.path.abspath(entry["filepath"]),
+            DMP.patch_toText(
+                DMP.patch_make(
+                    a=NL.join(new_lines),
+                    b=DMP.diff_main(NL.join(new_lines), NL.join(old_lines)),
+                )
+            ),
         )
         for entry, old_lines, new_lines in [
             (entry, *_set_values(entry=entry, value=args.value))
             for entry in config.values()
         ]
-    }
+    ]
 
     _add_to_history(patch=patch)
 
@@ -673,7 +700,7 @@ def add_entry(args):
 
     config = parse_config(g=args.g)
 
-    old_config = deepcopy(config)
+    old_config = deepcopy(load_config(g=args.g))
 
     config[args.name] = {
         "type": args.subcommand,
@@ -702,31 +729,33 @@ def add_entry(args):
             "group": int(args.group[0]) if args.group else None,
             "occurences": args.occurences if args.occurences else ":",
         }
-
-    patch = {
-        get_abs_config_path(): DMP.patch_toText(
-            DMP.patch_make(
-                a=NL.join(config),
-                b=DMP.diff_main(NL.join(config), NL.join(old_config)),
-            )
-        )
-    }
-
-    _add_to_history(patch=patch)
-
     with open(get_abs_config_path(g=args.g), mode="w") as f:
         json.dump(config, f, indent=4)
 
+    new_config = load_config(g=args.g)
+
+    patch = [
+        (
+            get_abs_config_path(),
+            DMP.patch_toText(
+                DMP.patch_make(
+                    a=NL.join(new_config),
+                    b=DMP.diff_main(NL.join(new_config), NL.join(old_config)),
+                )
+            ),
+        )
+    ]
+
+    _add_to_history(patch=patch)
+
 
 def _update_name(args):
-    config = parse_config(g=args.g)
-
-    filtered_keys = filter_config(
+    config = parse_config(
         except_flags=args.e, only_flags=args.o, names=args.n, path=args.p, g=args.g
     )
 
-    if len(filtered_keys) != 1:
-        print("Filter parameters returned more than one entry for name change")
+    if len(config) != 1:
+        print("Filter parameters returned more/less than one entry for name change")
 
     if args.updateValue in config:
         print(
@@ -735,7 +764,7 @@ def _update_name(args):
         )
         return config
 
-    oldKey = next(iter(filtered_keys))
+    oldKey = next(iter(config.keys()))
 
     config[args.updateValue] = config[oldKey]
     config.pop(oldKey)
@@ -743,38 +772,28 @@ def _update_name(args):
     return config
 
 
-def load_config(g=False):
-    config_path = get_abs_config_path(g=g)
-
-    if not os.path.exists(config_path):
-        print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
-        sys.exit(1)
-    with open(config_path) as f:
-        config: dict = json.load(f)
-
-    return config
-
-
 def _update_property(args, property: str = None, updatedValue: str = ""):
     """Update the given property of entries"""
 
-    config = load_config(args.g)
-
-    filtered_keys = filter_config(
+    config = parse_config(
         except_flags=args.e, only_flags=args.o, names=args.n, path=args.p, g=args.g
     )
 
-    for entry in filtered_keys:
-        if property not in config[entry]:
-            print(f"Entry: {entry} does not have property {property}")
+    for key, entry in config.items():
+        if property not in entry:
+            print(f"Entry: {key} does not have property {property}")
             continue
-        config[entry][property] = updatedValue
+        entry[property] = updatedValue
 
     return config
 
 
 def update_entry(args):
     """Update entries in the .xet"""
+
+    config = parse_config(args.g)
+    old_config = deepcopy(load_config(g=args.g))
+
     if args.updateKey == "type":
         print("Type cannot be updated, create a new entry")
     elif args.updateKey == "name":
@@ -787,15 +806,48 @@ def update_entry(args):
     with open(get_abs_config_path(g=args.g), mode="w") as f:
         json.dump(config, f, indent=4)
 
+    new_config = load_config(g=args.g)
+
+    patch = [
+        (
+            get_abs_config_path(),
+            DMP.patch_toText(
+                DMP.patch_make(
+                    a=NL.join(new_config),
+                    b=DMP.diff_main(NL.join(new_config), NL.join(old_config)),
+                )
+            ),
+        )
+    ]
+
+    _add_to_history(patch=patch)
+
 
 def remove_entry(args):
     """Remove an entry from .xet based on the tag"""
     config = parse_config(g=args.g)
+    old_config = deepcopy(load_config(g=args.g))
 
     config.pop(args.name)
 
     with open(get_abs_config_path(g=args.g), mode="w") as f:
         json.dump(config, f, indent=4)
+
+    new_config = load_config(g=args.g)
+
+    patch = [
+        (
+            get_abs_config_path(),
+            DMP.patch_toText(
+                DMP.patch_make(
+                    a=NL.join(new_config),
+                    b=DMP.diff_main(NL.join(new_config), NL.join(old_config)),
+                )
+            ),
+        )
+    ]
+
+    _add_to_history(patch=patch)
 
 
 def edit_config(args):
@@ -865,12 +917,12 @@ def undo(args):
 
     if len(history["past"]) == 0:
         print("Nothing to undo")
-        sys.exit(1)
+        return
 
     to_undo = history["past"].pop(0)
 
-    to_future = {}
-    for filepath, patch in to_undo.items():
+    to_future = []
+    for filepath, patch in to_undo:
         with open(filepath) as f:
             text = f.read()
 
@@ -879,10 +931,15 @@ def undo(args):
         with open(filepath, mode="w") as f:
             f.write(patched_text)
 
-        to_future[filepath] = DMP.patch_toText(
-            DMP.patch_make(
-                a=patched_text,
-                b=DMP.diff_main(patched_text, text),
+        to_future.append(
+            (
+                filepath,
+                DMP.patch_toText(
+                    DMP.patch_make(
+                        a=patched_text,
+                        b=DMP.diff_main(patched_text, text),
+                    )
+                ),
             )
         )
 
@@ -897,12 +954,13 @@ def redo(args):
 
     if len(history["future"]) == 0:
         print("Nothing to redo")
-        sys.exit(1)
+        return
 
     to_redo = history["future"].pop(0)
 
-    to_past = {}
-    for filepath, patch in to_redo.items():
+    to_past = []
+
+    for filepath, patch in to_redo:
         with open(filepath) as f:
             text = f.read()
 
@@ -911,10 +969,15 @@ def redo(args):
         with open(filepath, mode="w") as f:
             f.write(patched_text)
 
-        to_past[filepath] = DMP.patch_toText(
-            DMP.patch_make(
-                a=patched_text,
-                b=DMP.diff_main(patched_text, text),
+        to_past.append(
+            (
+                filepath,
+                DMP.patch_toText(
+                    DMP.patch_make(
+                        a=patched_text,
+                        b=DMP.diff_main(patched_text, text),
+                    )
+                ),
             )
         )
 
@@ -930,6 +993,8 @@ def snapshot(args):
     elif args.first:
         print("First mode is not implemented yet.")
         return
+
+    old_config = deepcopy(load_config(g=args.g))
 
     config = parse_config(
         except_flags=args.e,
@@ -955,6 +1020,22 @@ def snapshot(args):
 
     with open(get_abs_config_path(g=args.g), mode="w") as f:
         json.dump(config, f, indent=4)
+
+    new_config = load_config(g=args.g)
+
+    patch = [
+        (
+            get_abs_config_path(),
+            DMP.patch_toText(
+                DMP.patch_make(
+                    a=NL.join(new_config),
+                    b=DMP.diff_main(NL.join(new_config), NL.join(old_config)),
+                )
+            ),
+        )
+    ]
+
+    _add_to_history(patch=patch)
 
 
 def main(args=None):

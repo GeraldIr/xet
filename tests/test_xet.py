@@ -116,7 +116,7 @@ def test_add(data_path):
         ]
     )
 
-    config = xet.load_config()
+    config = xet.parse_config()
 
     assert "test_tag" in config
     assert "test_lc" in config
@@ -673,6 +673,15 @@ def test_preset_snapshot(capsys, data_path):
 
     xet.main(["snapshot", "pre2"])
 
+    xet.main(["undo"])
+
+    config = xet.parse_config()
+
+    for entry in config.values():
+        assert "pre2" not in entry["presets"]
+
+    xet.main(["redo"])
+
     xet.main(["preset", "pre1"])
 
     xet.main(["get"])
@@ -689,6 +698,14 @@ def test_preset_snapshot(capsys, data_path):
 
     assert output == "ABC\nDEF\nghi\njkl\nmno"
 
+    xet.main(["undo"])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "test\ntest\ntest\ntest\ntest"
+
 
 def test_history(capsys, data_path):
     xet.main(
@@ -700,6 +717,52 @@ def test_history(capsys, data_path):
             "TEST1 = ",
         ]
     )
+
+    xet.main(["undo"])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == ""
+
+    xet.main(["redo"])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "ABC"
+
+    xet.main(["remove", "test_1"])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == ""
+
+    xet.main(["undo"])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "ABC"
+
+    xet.main(["forget"])
+
+    xet.main(["undo"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "Nothing to undo"
+
+    xet.main(["redo"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "Nothing to redo"
 
     xet.main(["set", "TEST"])
     xet.main(["undo"])
