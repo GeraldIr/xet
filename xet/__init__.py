@@ -1,1 +1,1 @@
-from .xet import *
+from .xet import *  # noqa
