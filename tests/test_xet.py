@@ -734,7 +734,7 @@ def test_history(capsys, data_path):
 
     assert output == "ABC"
 
-    xet.main(["remove", "test_1"])
+    xet.main(["remove", "-n", "test_1"])
 
     xet.main(["get"])
 
@@ -808,3 +808,10 @@ def test_update(capsys, data_path):
     output = capsys.readouterr().out.rstrip()
 
     assert output == "DEF"
+
+
+def test_enumerate_slice(capsys):
+    length = 10
+    sl = xet.parse_index_or_slice("1:5")
+
+    assert [1, 2, 3, 4] == list(range(length))[sl]

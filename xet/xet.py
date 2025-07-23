@@ -152,7 +152,7 @@ def load_config(g=False):
         return f.readlines()
 
 
-def _parse_index_or_slice(s):
+def parse_index_or_slice(s):
     if ":" in s:
         parts = s.split(":")
         parts = [int(p) if p else None for p in parts]
@@ -184,10 +184,10 @@ def _color_tag(line: str = "", tag: str = ""):
 def _filter_occurences(occurences: list, filter: str = ":"):
     filter = filter if filter else ":"
     if isinstance(filter, str):
-        filtered_occurences = occurences[_parse_index_or_slice(filter)]
+        filtered_occurences = occurences[parse_index_or_slice(filter)]
     elif isinstance(filter, list):
         if len(filter) == 1:
-            filtered_occurences = occurences[_parse_index_or_slice(filter[0])]
+            filtered_occurences = occurences[parse_index_or_slice(filter[0])]
         else:
             filtered_occurences = [
                 o for i, o in enumerate(occurences) if str(i) in filter
@@ -826,9 +826,19 @@ def update_entry(args):
 def remove_entry(args):
     """Remove an entry from .xet based on the tag"""
     config = parse_config(g=args.g)
+
+    delete_keys = filter_config(
+        except_flags=args.e,
+        only_flags=args.o,
+        names=args.n,
+        path=args.p,
+        g=args.g,
+    )
+
     old_config = deepcopy(load_config(g=args.g))
 
-    config.pop(args.name)
+    for key in delete_keys:
+        config.pop(key)
 
     with open(get_abs_config_path(g=args.g), mode="w") as f:
         json.dump(config, f, indent=4)
@@ -987,6 +997,10 @@ def redo(args):
         json.dump(history, f, indent=4)
 
 
+def enumerate_slice(slice: slice, length: int):
+    return list(range(length))[slice]
+
+
 def snapshot(args):
     if args.split:
         print("Split mode is not implemented yet.")
@@ -1004,15 +1018,31 @@ def snapshot(args):
         g=args.g,
     )
 
+    if args.split:
+        split_config = {}
+        for name, entry in config.items():
+            values = [value for _, value in _get_values(entry=entry)]
+            if len(set(values)) != 1:
+                for value in set(values):
+                    [list(range())[slice]]
+
+            else:
+                split_config[name] = entry
+
     for name, entry in config.items():
         values = [value for _, value in _get_values(entry=entry)]
 
         if len(set(values)) != 1:
-            print(
-                f"Cannot snapshot entry {name},\
-                divergent occurence values detected.\
-                Use --split or --first."
-            )
+            if args.first:
+                values = [values[0]]
+            else:
+                print(
+                    f"Cannot snapshot entry {name},\
+                    divergent occurence values detected.\
+                    Use --split or --first."
+                )
+                continue
+
         if not entry["presets"]:
             entry["presets"] = {}
 
@@ -1334,9 +1364,6 @@ def main(args=None):
 
     remove_parser = subparsers.add_parser("remove", help="Remove an entry from .xet")
     remove_parser.set_defaults(func=remove_entry)
-    remove_parser.add_argument(
-        "name", help=f"{NAME_COLOR + 'Name' + Style.RESET_ALL} of the entry to remove"
-    )
 
     """
     PRESET PARSER
@@ -1396,6 +1423,7 @@ def main(args=None):
                 help="Include only entries with these flags",
             ),
             [
+                remove_parser,
                 update_parser,
                 get_parser,
                 set_parser,
@@ -1415,6 +1443,7 @@ def main(args=None):
                 help="Exclude entries with these flags",
             ),
             [
+                remove_parser,
                 update_parser,
                 get_parser,
                 set_parser,
@@ -1435,6 +1464,7 @@ def main(args=None):
                     {NAME_COLOR + 'names' + Style.RESET_ALL}",
             ),
             [
+                remove_parser,
                 update_parser,
                 get_parser,
                 set_parser,
@@ -1454,6 +1484,7 @@ def main(args=None):
                     {PATH_COLOR + 'paths' + Style.RESET_ALL}",
             ),
             [
+                remove_parser,
                 update_parser,
                 get_parser,
                 set_parser,
