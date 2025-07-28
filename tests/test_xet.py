@@ -810,8 +810,141 @@ def test_update(capsys, data_path):
     assert output == "DEF"
 
 
-def test_enumerate_slice(capsys):
+def test_enumerate_slice():
     length = 10
     sl = xet.parse_index_or_slice("1:5")
 
     assert [1, 2, 3, 4] == list(range(length))[sl]
+
+
+def test_snapshot_split(capsys, data_path):
+    xet.main(
+        ["add", "tag", "test_1", os.path.abspath(data_path / "test.txt"), "TEST1 = "]
+    )
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_2",
+            os.path.abspath(data_path / "test.txt"),
+            "TEST2 = ",
+            "-w",
+            '"',
+        ]
+    )
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_3",
+            os.path.abspath(data_path / "test.txt"),
+            "TEST3: ",
+            "-w",
+            "'",
+        ]
+    )
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_4",
+            os.path.abspath(data_path / "test.txt"),
+            "TEST4, ",
+            "-w",
+            "__",
+        ]
+    )
+    xet.main(
+        ["add", "tag", "test_5", os.path.abspath(data_path / "test.txt"), "TEST5: "]
+    )
+
+    xet.main(["snapshot", "preset1"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == (
+        "Cannot snapshot entry test_5,"
+        "divergent occurence values detected."
+        "Use --split or --first."
+    )
+
+    xet.main(["snapshot", "preset2", "--split"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == ""
+
+    config = xet.parse_config()
+    assert len(config) == 6
+
+    xet.main(["set", "TEST"])
+
+    xet.main(["preset", "preset1"])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "ABC\nDEF\nghi\njkl\nTEST\nTEST"
+
+    xet.main(["preset", "preset2"])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "ABC\nDEF\nghi\njkl\nmno\npqr"
+
+
+def test_snapshot_first(capsys, data_path):
+    xet.main(
+        ["add", "tag", "test_1", os.path.abspath(data_path / "test.txt"), "TEST1 = "]
+    )
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_2",
+            os.path.abspath(data_path / "test.txt"),
+            "TEST2 = ",
+            "-w",
+            '"',
+        ]
+    )
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_3",
+            os.path.abspath(data_path / "test.txt"),
+            "TEST3: ",
+            "-w",
+            "'",
+        ]
+    )
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_4",
+            os.path.abspath(data_path / "test.txt"),
+            "TEST4, ",
+            "-w",
+            "__",
+        ]
+    )
+    xet.main(
+        ["add", "tag", "test_5", os.path.abspath(data_path / "test.txt"), "TEST5: "]
+    )
+
+    xet.main(["snapshot", "preset1", "--first"])
+
+    xet.main(["set", "TEST"])
+
+    xet.main(["preset", "preset1"])
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "ABC\nDEF\nghi\njkl\nmno\nmno"

@@ -1002,12 +1002,6 @@ def enumerate_slice(slice: slice, length: int):
 
 
 def snapshot(args):
-    if args.split:
-        print("Split mode is not implemented yet.")
-    elif args.first:
-        print("First mode is not implemented yet.")
-        return
-
     old_config = deepcopy(load_config(g=args.g))
 
     config = parse_config(
@@ -1023,11 +1017,15 @@ def snapshot(args):
         for name, entry in config.items():
             values = [value for _, value in _get_values(entry=entry)]
             if len(set(values)) != 1:
-                for value in set(values):
-                    [list(range())[slice]]
-
+                for value in sorted(set(values), key=values.index):
+                    new_entry = deepcopy(entry)
+                    new_entry["occurences"] = [
+                        str(i) for i, x in enumerate(values) if x == value
+                    ]
+                    split_config[name + "_" + value] = new_entry
             else:
                 split_config[name] = entry
+        config = split_config
 
     for name, entry in config.items():
         values = [value for _, value in _get_values(entry=entry)]
@@ -1037,9 +1035,9 @@ def snapshot(args):
                 values = [values[0]]
             else:
                 print(
-                    f"Cannot snapshot entry {name},\
-                    divergent occurence values detected.\
-                    Use --split or --first."
+                    f"Cannot snapshot entry {name},"
+                    "divergent occurence values detected."
+                    "Use --split or --first."
                 )
                 continue
 
