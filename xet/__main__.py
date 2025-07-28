@@ -1,4 +1,4 @@
-if __name__ == "__main__":
-    from xet.cli import main
+from xet.cli import main
 
+if __name__ == "__main__":
     main()
