@@ -162,7 +162,6 @@ xet snapshot <preset> [options]
 - `<preset>`: The name of the new preset.
 Options:
    - `--first`: When there is divergent values in seperate occurences in an entry, use the first value for the preset.
-   - `--split`: When there is divergent values in seperate occurences in an entry, split the entry such that no divergences remain.
    - `-e, --except <flags>`: Exclude entries with specified flags.
    - `-o, --only <flags>`: Include only entries with specified flags.
    - `-n, --names <names>`: Include only entries with specified names.
