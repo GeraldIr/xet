@@ -1030,3 +1030,42 @@ def test_path_filtering_glob(capsys, data_path):
     output = capsys.readouterr().out.rstrip()
 
     assert output == "TEST\n123"
+
+
+def test_errors(capsys, data_path):
+    xet.main(["edit"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == "No default editor found."
+
+    xet.main(
+        [
+            "add",
+            "tag",
+            "test_1",
+            os.path.abspath(data_path / "fake.txt"),
+            "TEST1 = ",
+            "-p",
+            "preset1",
+            "TEST",
+        ]
+    )
+
+    xet.main(["get"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == ""
+
+    xet.main(["set", "TEST"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == ""
+
+    xet.main(["preset", "preset1"])
+
+    output = capsys.readouterr().out.rstrip()
+
+    assert output == ""

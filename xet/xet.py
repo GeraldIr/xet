@@ -511,10 +511,6 @@ def _set_values_in_file(entry, filepath, value):
         entry["ssh"],
     )
 
-    if not os.path.exists(filepath):
-        print(f"File not found: {filepath}. Skipping.")
-        return
-
     if type == "tag":
         tag = entry["tag"]
         occurences = entry["occurences"]
@@ -562,10 +558,6 @@ def set_presets(args):
     patch = []
     for entry in config.values():
         for filepath in glob.glob(entry["filepath"]):
-            if not os.path.exists(filepath):
-                print(f"File not found: {filepath}. Skipping.")
-                continue
-
             old_lines, new_lines = _set_values_in_file(
                 entry=entry,
                 filepath=filepath,
@@ -601,9 +593,6 @@ def set_values(args):
         for filepath in glob.glob(entry["filepath"]):
             if args.p and filepath not in _list_glob(args.p):
                 continue
-            if not os.path.exists(filepath):
-                print(f"File not found: {filepath}. Skipping.")
-                continue
 
             old_lines, new_lines = _set_values_in_file(
                 entry=entry, filepath=filepath, value=args.value
@@ -630,10 +619,6 @@ def _get_values_in_file(entry, filepath):
         entry["wrapper"],
         entry["ssh"],
     )
-    if not os.path.exists(filepath):
-        print(f"File not found: {filepath}. Skipping.")
-        return
-
     if type == "tag":
         tag = entry["tag"]
         occurences = entry["occurences"]
@@ -686,9 +671,6 @@ def get_values(args):
         )
         for filepath in glob.glob(entry["filepath"]):
             if args.p and filepath not in _list_glob(args.p):
-                continue
-            if not os.path.exists(filepath):
-                print(f"File not found: {filepath}. Skipping.")
                 continue
 
             if verbosity >= 2:
