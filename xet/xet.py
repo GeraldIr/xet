@@ -1,12 +1,13 @@
 import argparse
+import glob
 import json
 import os
 import re
 import subprocess
-from copy import deepcopy
 import sys
+from copy import deepcopy
 from typing import Union
-import glob
+
 import diff_match_patch as dmp
 from colorama import Fore, Style
 from fabric import Connection
@@ -1050,7 +1051,6 @@ def snapshot(args):
     )
 
     for name, entry in config.items():
-
         values = [
             value
             for _, value in [
