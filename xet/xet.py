@@ -1,8 +1,10 @@
 import argparse
+import glob
 import json
 import os
 import re
 import subprocess
+import sys
 from copy import deepcopy
 from typing import Union
 
@@ -10,7 +12,7 @@ import diff_match_patch as dmp
 from colorama import Fore, Style
 from fabric import Connection
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 CONFIG_FILE = ".xet"
 HISTORY_FILE = ".xet_history"
 
@@ -33,7 +35,7 @@ def _get_config_path(g=False, init=False):
         if xdg_config:
             return os.path.join(xdg_config, CONFIG_FILE)
         else:
-            return os.path.join(os.path.expanduser("~"), CONFIG_FILE)
+            return os.path.join(os.path.expanduser("~"), ".config", CONFIG_FILE)
     else:
         return CONFIG_FILE
 
@@ -50,12 +52,25 @@ def get_abs_config_path(g=False, init=False):
     return os.path.abspath(_get_config_path(g=g, init=init))
 
 
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+
+def _list_glob(filepaths):
+    globbed = []
+
+    for filepath in filepaths:
+        globbed += glob.glob(filepath)
+
+    return globbed
+
+
 def init_config(args):
     """Initialize a .xet file"""
 
     if os.path.exists(get_abs_config_path(args.g, init=True)):
-        print("Configuration already exists")
-        return
+        eprint("Configuration already exists")
+        sys.exit(1)
     with open(get_abs_config_path(args.g, init=True), "w") as f:
         json.dump({}, f)
 
@@ -73,8 +88,8 @@ def filter_config(
     config_path = get_abs_config_path(g=g)
 
     if not os.path.exists(config_path):
-        print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
-        return
+        eprint(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
+        sys.exit(1)
     with open(config_path) as f:
         config: dict = json.load(f)
 
@@ -96,7 +111,10 @@ def filter_config(
 
     if path:
         path_entries = [
-            name for name in config.keys() if config[name]["filepath"] in path
+            name
+            for name in config.keys()
+            if (set(path) & set(glob.glob(config[name]["filepath"])))
+            or config[name]["filepath"] in path
         ]
         config = {
             k: v for k, v in zip(path_entries, [config[name] for name in path_entries])
@@ -125,8 +143,8 @@ def parse_config(
     config_path = get_abs_config_path(g=g)
 
     if not os.path.exists(config_path):
-        print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
-        return
+        eprint(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
+        sys.exit(1)
     with open(config_path) as f:
         config: dict = json.load(f)
 
@@ -146,8 +164,8 @@ def load_config(g=False):
     config_path = get_abs_config_path(g=g)
 
     if not os.path.exists(config_path):
-        print(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
-        return
+        eprint(f"Error: Config file '{config_path}' not found. Run 'xet init' first")
+        sys.exit(1)
     with open(config_path) as f:
         return f.readlines()
 
@@ -486,17 +504,12 @@ def _print_regex_values(sanitized_value, verbosity):
             print(value)
 
 
-def _set_values(entry, value):
-    type, filepath, wrapper, ssh = (
+def _set_values_in_file(entry, filepath, value):
+    type, wrapper, ssh = (
         entry["type"],
-        os.path.abspath(entry["filepath"]),
         entry["wrapper"],
         entry["ssh"],
     )
-
-    if not os.path.exists(filepath):
-        print(f"File not found: {filepath}")
-        return
 
     if type == "tag":
         tag = entry["tag"]
@@ -542,26 +555,30 @@ def _set_values(entry, value):
 def set_presets(args):
     config = parse_config(preset=args.preset, g=args.g)
 
-    patch = [
-        (
-            os.path.abspath(entry["filepath"]),
-            DMP.patch_toText(
-                DMP.patch_make(
-                    a=NL.join(new_lines),
-                    b=DMP.diff_main(NL.join(new_lines), NL.join(old_lines)),
+    patch = []
+    for entry in config.values():
+        for filepath in glob.glob(entry["filepath"]):
+            old_lines, new_lines = _set_values_in_file(
+                entry=entry,
+                filepath=filepath,
+                value=entry["presets"][args.preset],
+            )
+            patch += [
+                (
+                    os.path.abspath(filepath),
+                    DMP.patch_toText(
+                        DMP.patch_make(
+                            a=NL.join(new_lines),
+                            b=DMP.diff_main(NL.join(new_lines), NL.join(old_lines)),
+                        )
+                    ),
                 )
-            ),
-        )
-        for entry, old_lines, new_lines in [
-            (entry, *_set_values(entry=entry, value=entry["presets"][args.preset]))
-            for entry in config.values()
-        ]
-    ]
+            ]
 
     _add_to_history(patch=patch)
 
 
-def set_value(args):
+def set_values(args):
     """Set the value associated with a tag in files listed in .xet"""
     config = parse_config(
         except_flags=args.e,
@@ -571,36 +588,37 @@ def set_value(args):
         g=args.g,
     )
 
-    patch = [
-        (
-            os.path.abspath(entry["filepath"]),
-            DMP.patch_toText(
-                DMP.patch_make(
-                    a=NL.join(new_lines),
-                    b=DMP.diff_main(NL.join(new_lines), NL.join(old_lines)),
+    patch = []
+    for entry in config.values():
+        for filepath in glob.glob(entry["filepath"]):
+            if args.p and filepath not in _list_glob(args.p):
+                continue
+
+            old_lines, new_lines = _set_values_in_file(
+                entry=entry, filepath=filepath, value=args.value
+            )
+
+            patch += [
+                (
+                    os.path.abspath(filepath),
+                    DMP.patch_toText(
+                        DMP.patch_make(
+                            a=NL.join(new_lines),
+                            b=DMP.diff_main(NL.join(new_lines), NL.join(old_lines)),
+                        )
+                    ),
                 )
-            ),
-        )
-        for entry, old_lines, new_lines in [
-            (entry, *_set_values(entry=entry, value=args.value))
-            for entry in config.values()
-        ]
-    ]
+            ]
 
     _add_to_history(patch=patch)
 
 
-def _get_values(entry):
-    type, filepath, wrapper, ssh = (
+def _get_values_in_file(entry, filepath):
+    type, wrapper, ssh = (
         entry["type"],
-        os.path.abspath(entry["filepath"]),
         entry["wrapper"],
         entry["ssh"],
     )
-    if not os.path.exists(filepath):
-        print(f"File not found: {filepath}")
-        return
-
     if type == "tag":
         tag = entry["tag"]
         occurences = entry["occurences"]
@@ -641,63 +659,65 @@ def _get_values(entry):
         )
 
 
-def get_value(args):
+def get_values(args):
     """Get the value associated with a tag in files listed in .xet"""
     config = parse_config(
         except_flags=args.e, only_flags=args.o, names=args.n, path=args.p, g=args.g
     )
     for name, entry in config.items():
-        type, filepath, verbosity = (
+        type, verbosity = (
             entry["type"],
-            os.path.abspath(entry["filepath"]),
             args.verbosity,
         )
-        if not os.path.exists(filepath):
-            print(f"File not found: {filepath}")
-            continue
+        for filepath in glob.glob(entry["filepath"]):
+            if args.p and filepath not in _list_glob(args.p):
+                continue
 
-        if verbosity >= 2:
-            print(
-                (
-                    f"{NAME_COLOR + name}{SEP_COLOR + ':'}"
-                    f"{PATH_COLOR + filepath}{SEP_COLOR + ':'}"
-                ),
-                end="",
-            )
-        if type == "tag":
-            tag = entry["tag"]
-            if verbosity >= 2:
-                print(f"{IDENTIFIER_COLOR + tag}{SEP_COLOR + ':' + Style.RESET_ALL}")
-            _print_tag_values(
-                _get_values(entry=entry),
-                tag=tag,
-                verbosity=verbosity,
-            )
-        elif type == "lc":
-            line = entry["line"]
-            column = entry["column"]
             if verbosity >= 2:
                 print(
-                    f"{IDENTIFIER_COLOR + line}{SEP_COLOR + ':'}\
-                    {IDENTIFIER_COLOR + column}{SEP_COLOR + ':' + Style.RESET_ALL}"
+                    (
+                        f"{NAME_COLOR + name}{SEP_COLOR + ':'}"
+                        f"{PATH_COLOR + filepath}{SEP_COLOR + ':'}"
+                    ),
+                    end="",
                 )
-            _print_lc_values(
-                _get_values(entry=entry),
-                verbosity=verbosity,
-            )
-        elif type == "regex":
-            regex = entry["regex"]
-            if verbosity >= 2:
-                print(f"{IDENTIFIER_COLOR + regex}{SEP_COLOR + ':' + Style.RESET_ALL}")
-            _print_regex_values(
-                _get_values(entry=entry),
-                verbosity=verbosity,
-            )
+            if type == "tag":
+                tag = entry["tag"]
+                if verbosity >= 2:
+                    print(
+                        f"{IDENTIFIER_COLOR + tag}{SEP_COLOR + ':' + Style.RESET_ALL}"
+                    )
+                _print_tag_values(
+                    _get_values_in_file(entry=entry, filepath=filepath),
+                    tag=tag,
+                    verbosity=verbosity,
+                )
+            elif type == "lc":
+                line = entry["line"]
+                column = entry["column"]
+                if verbosity >= 2:
+                    print(
+                        f"{IDENTIFIER_COLOR + line}{SEP_COLOR + ':'}\
+                        {IDENTIFIER_COLOR + column}{SEP_COLOR + ':' + Style.RESET_ALL}"
+                    )
+                _print_lc_values(
+                    _get_values_in_file(entry=entry, filepath=filepath),
+                    verbosity=verbosity,
+                )
+            elif type == "regex":
+                regex = entry["regex"]
+                if verbosity >= 2:
+                    print(
+                        f"{IDENTIFIER_COLOR + regex}{SEP_COLOR + ':' + Style.RESET_ALL}"
+                    )
+                _print_regex_values(
+                    _get_values_in_file(entry=entry, filepath=filepath),
+                    verbosity=verbosity,
+                )
 
 
 def add_entry(args):
     """Add a new entry to .xet"""
-
     config = parse_config(g=args.g)
 
     old_config = deepcopy(load_config(g=args.g))
@@ -1012,23 +1032,19 @@ def snapshot(args):
         g=args.g,
     )
 
-    if args.split:
-        split_config = {}
-        for name, entry in config.items():
-            values = [value for _, value in _get_values(entry=entry)]
-            if len(set(values)) != 1:
-                for value in sorted(set(values), key=values.index):
-                    new_entry = deepcopy(entry)
-                    new_entry["occurences"] = [
-                        str(i) for i, x in enumerate(values) if x == value
-                    ]
-                    split_config[name + "_" + value] = new_entry
-            else:
-                split_config[name] = entry
-        config = split_config
-
     for name, entry in config.items():
-        values = [value for _, value in _get_values(entry=entry)]
+        values = [
+            value
+            for _, value in [
+                x
+                for xs in [
+                    _get_values_in_file(entry=entry, filepath=filepath)
+                    for filepath in glob.glob(entry["filepath"])
+                    if (args.p and filepath in _list_glob(args.p)) or not args.p
+                ]
+                for x in xs
+            ]
+        ]
 
         if len(set(values)) != 1:
             if args.first:
@@ -1037,7 +1053,7 @@ def snapshot(args):
                 print(
                     f"Cannot snapshot entry {name},"
                     "divergent occurence values detected."
-                    "Use --split or --first."
+                    "Use --first."
                 )
                 continue
 
@@ -1105,7 +1121,7 @@ def main(args=None):
         help=f"Get {VALUE_COLOR + 'values' + Style.RESET_ALL} from entries\
         listed in the .xet",
     )
-    get_parser.set_defaults(func=get_value)
+    get_parser.set_defaults(func=get_values)
 
     get_parser.add_argument(
         "-v",
@@ -1125,7 +1141,7 @@ def main(args=None):
         help=f"Set a {VALUE_COLOR + 'value' + Style.RESET_ALL}\
             in files listed in the .xet",
     )
-    set_parser.set_defaults(func=set_value)
+    set_parser.set_defaults(func=set_values)
     set_parser.add_argument(
         "value", help=f"{VALUE_COLOR + 'Value' + Style.RESET_ALL} to set"
     )
@@ -1360,7 +1376,7 @@ def main(args=None):
     REMOVE PARSER
     """
 
-    remove_parser = subparsers.add_parser("remove", help="Remove an entry from .xet")
+    remove_parser = subparsers.add_parser("remove", help="Remove entries from .xet")
     remove_parser.set_defaults(func=remove_entry)
 
     """
@@ -1386,7 +1402,6 @@ def main(args=None):
     snapshot_parser.set_defaults(func=snapshot)
     snapshot_parser.add_argument("preset", help="Name of the snapshot preset")
 
-    snapshot_parser.add_argument("--split", action="store_true", dest="split")
     snapshot_parser.add_argument("--first", action="store_true", dest="first")
 
     """UNDO/REDO PARSERS"""
