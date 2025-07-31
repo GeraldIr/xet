@@ -2,26 +2,38 @@
 ![version](https://img.shields.io/pypi/v/xet)
 [![codecov](https://codecov.io/gh/GeraldIr/xet/graph/badge.svg?token=7NZVXLXIB9)](https://codecov.io/gh/GeraldIr/xet)
 
-# xet CLI Usage Guide
+# xet
 
-## Overview
+**xet** is a powerful command-line tool for easily managing and updating values across multiple files using a single configuration file (`.xet`). Whether you need to update versions, secrets, or any arbitrary values in your codebase or configuration files, xet provides a flexible, scriptable, and reproducible workflow.
 
-xet is a command-line tool for managing and modifying values in multiple files using a configuration file (`.xet`). It supports various methods of identifying and modifying values, including tags, line/column positions, and regular expressions.
-You can create presets and change between them on the fly.
+## Key Features
 
-## Installation
+- **Batch Value Management**: Modify values in many files (supports path name expansion) simultaneously with simple commands.
+- **Multiple Targeting Modes**: Identify values to change by tag, line/column, or regex — works with any text file.
+- **Presets & Profiles**: Define named presets and instantly switch between configurations for different environments (dev, prod, staging, etc.).
+- **Local & Global Modes**: Use configuration locally in your project, or globally across your system.
+- **History & Undo/Redo**: Mistake? xet tracks changes and supports undo/redo for safe editing.
+- **SSH Support**: Update files on remote systems using SSH integration (via your OpenSSH config).
+- **Script-Friendly**: Works seamlessly in CI/CD pipelines or as part of your automation scripts.
 
+## Typical Use Cases
 
+- Bumping version numbers or API keys in many files at once
+- Managing configuration across multiple environments
+- Keeping secrets or tokens in sync
+- Automated updates in build and deploy pipelines
+
+## Quick Start
+
+Install with pipx or pip:
 ```sh
 pipx install xet
-```
-or
-```sh
+# or
 pip install xet
 ```
 
 
-## Commands
+## Documentation
 
 ### Configuration
 
@@ -129,7 +141,7 @@ xet add regex <name> <filepath> <regex> [options]
 xet update <key> <value> [options]
 ```
 - `<key>`: The key of the property to update ('name' will update the key of the entry).
-- `<value>`: The new value for the property.
+- `<value>`: The new value for the property.  
 Options:
    - `-e, --except <flags>`: Exclude entries with specified flags.
    - `-o, --only <flags>`: Include only entries with specified flags.
@@ -171,7 +183,7 @@ Options:
 
 Adds a preset to the filtered entries using their current values.
 
-### Modifying Values
+### Values 
 
 #### Get Values from Configured Files
 
@@ -193,7 +205,7 @@ Options:
 xet set <value> [options]
 ```
 
-- `<value>`: The new value to be set.
+- `<value>`: The new value to be set.  
 Options:
    - `-e, --except <flags>`: Exclude entries with specified flags.
    - `-o, --only <flags>`: Include only entries with specified flags.
@@ -207,7 +219,7 @@ Options:
 xet preset <preset>
 ```
 
-- `<preset>`: Name of the preset to be set.
+- `<preset>`: Name of the preset to be set.  
 - Options:
    - `-g, --global`: Use the global `.xet`.
 
