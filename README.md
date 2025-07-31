@@ -141,7 +141,7 @@ xet add regex <name> <filepath> <regex> [options]
 xet update <key> <value> [options]
 ```
 - `<key>`: The key of the property to update ('name' will update the key of the entry).
-- `<value>`: The new value for the property.  
+- `<value>`: The new value for the property.
 Options:
    - `-e, --except <flags>`: Exclude entries with specified flags.
    - `-o, --only <flags>`: Include only entries with specified flags.
@@ -183,7 +183,7 @@ Options:
 
 Adds a preset to the filtered entries using their current values.
 
-### Values 
+### Values
 
 #### Get Values from Configured Files
 
@@ -205,7 +205,7 @@ Options:
 xet set <value> [options]
 ```
 
-- `<value>`: The new value to be set.  
+- `<value>`: The new value to be set.
 Options:
    - `-e, --except <flags>`: Exclude entries with specified flags.
    - `-o, --only <flags>`: Include only entries with specified flags.
@@ -219,7 +219,7 @@ Options:
 xet preset <preset>
 ```
 
-- `<preset>`: Name of the preset to be set.  
+- `<preset>`: Name of the preset to be set.
 - Options:
    - `-g, --global`: Use the global `.xet`.
 
