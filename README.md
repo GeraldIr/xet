@@ -10,7 +10,7 @@
 
 - **Batch Value Management**: Modify values in many files (supports path name expansion) simultaneously with simple commands.
 - **Multiple Targeting Modes**: Identify values to change by tag, line/column, or regex — works with any text file.
-- **Presets & Profiles**: Define named presets and instantly switch between configurations for different environments (dev, prod, staging, etc.).
+- **Presets**: Define named presets and instantly switch between configurations for different environments (dev, prod, staging, etc.).
 - **Local & Global Modes**: Use configuration locally in your project, or globally across your system.
 - **History & Undo/Redo**: Mistake? xet tracks changes and supports undo/redo for safe editing.
 - **SSH Support**: Update files on remote systems using SSH integration (via your OpenSSH config).
