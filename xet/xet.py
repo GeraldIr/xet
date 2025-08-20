@@ -1039,7 +1039,7 @@ def snapshot(args):
                 x
                 for xs in [
                     _get_values_in_file(entry=entry, filepath=filepath)
-                    for filepath in glob.glob(entry["filepath"])
+                    for filepath in sorted(glob.glob(entry["filepath"]))
                     if (args.p and filepath in _list_glob(args.p)) or not args.p
                 ]
                 for x in xs
