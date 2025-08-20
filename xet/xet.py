@@ -12,7 +12,7 @@ import diff_match_patch as dmp
 from colorama import Fore, Style
 from fabric import Connection
 
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 CONFIG_FILE = ".xet"
 HISTORY_FILE = ".xet_history"
 
@@ -62,7 +62,7 @@ def _list_glob(filepaths):
     for filepath in filepaths:
         globbed += glob.glob(filepath)
 
-    return globbed
+    return sorted(globbed)
 
 
 def init_config(args):
@@ -557,7 +557,7 @@ def set_presets(args):
 
     patch = []
     for entry in config.values():
-        for filepath in glob.glob(entry["filepath"]):
+        for filepath in sorted(glob.glob(entry["filepath"])):
             old_lines, new_lines = _set_values_in_file(
                 entry=entry,
                 filepath=filepath,
@@ -590,7 +590,7 @@ def set_values(args):
 
     patch = []
     for entry in config.values():
-        for filepath in glob.glob(entry["filepath"]):
+        for filepath in sorted(glob.glob(entry["filepath"])):
             if args.p and filepath not in _list_glob(args.p):
                 continue
 
@@ -669,7 +669,7 @@ def get_values(args):
             entry["type"],
             args.verbosity,
         )
-        for filepath in glob.glob(entry["filepath"]):
+        for filepath in sorted(glob.glob(entry["filepath"])):
             if args.p and filepath not in _list_glob(args.p):
                 continue
 
@@ -1039,7 +1039,7 @@ def snapshot(args):
                 x
                 for xs in [
                     _get_values_in_file(entry=entry, filepath=filepath)
-                    for filepath in glob.glob(entry["filepath"])
+                    for filepath in sorted(glob.glob(entry["filepath"]))
                     if (args.p and filepath in _list_glob(args.p)) or not args.p
                 ]
                 for x in xs
